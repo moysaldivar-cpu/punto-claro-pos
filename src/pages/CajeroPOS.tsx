@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import PaymentModal from "@/components/PaymentModal";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 type ProductRow = {
   product_id: string;
@@ -25,6 +26,9 @@ export default function CajeroPOS() {
   const [loading, setLoading] = useState(true);
 
   const storeId = localStorage.getItem("store_id");
+
+  // 🔹 App settings (solo lectura)
+  const { settings } = useAppSettings();
 
   useEffect(() => {
     loadProducts();
@@ -105,18 +109,6 @@ export default function CajeroPOS() {
     });
   }
 
-  function removeFromCart(productId: string) {
-    setCart((prev) =>
-      prev
-        .map((item) =>
-          item.product_id === productId
-            ? { ...item, quantity: item.quantity - 1 }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
-  }
-
   async function handleConfirmPayment(payload: {
     payment_method: "cash" | "card" | "mixed";
     payment_cash: number;
@@ -153,6 +145,10 @@ export default function CajeroPOS() {
     return <div className="p-6">Cargando productos…</div>;
   }
 
+  const usdRate = settings.usdExchangeRate;
+  const totalUsd =
+    usdRate && usdRate > 0 ? total / usdRate : null;
+
   return (
     <div className="p-6 grid grid-cols-3 gap-6">
       {/* Productos */}
@@ -181,21 +177,15 @@ export default function CajeroPOS() {
                   Stock: {p.stock}
                 </div>
 
-                {/* Badge: Stock bajo */}
                 {isLow && (
-                  <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-xs font-medium
-                    bg-yellow-100 text-yellow-900 border border-yellow-300
-                    px-2 py-0.5 rounded">
-                    ⚠️ Stock bajo
+                  <span className="absolute top-2 right-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded">
+                    Stock bajo
                   </span>
                 )}
 
-                {/* Badge: Sin stock */}
                 {isOut && (
-                  <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-xs font-semibold
-                    bg-red-100 text-red-900 border border-red-300
-                    px-2 py-0.5 rounded">
-                    ⛔ Sin stock
+                  <span className="absolute top-2 right-2 text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded">
+                    Sin stock
                   </span>
                 )}
               </button>
@@ -217,25 +207,24 @@ export default function CajeroPOS() {
         {cart.map((item) => (
           <div
             key={item.product_id}
-            className="flex justify-between items-center mb-2"
+            className="flex justify-between mb-2"
           >
             <span>
               {item.name} x{item.quantity}
             </span>
-
-            <div className="flex items-center gap-2">
-              <span>${item.price * item.quantity}</span>
-              <button
-                onClick={() => removeFromCart(item.product_id)}
-                className="px-2 py-0.5 border rounded text-sm"
-              >
-                −
-              </button>
-            </div>
+            <span>${item.price * item.quantity}</span>
           </div>
         ))}
 
-        <div className="mt-4 font-bold">Total: ${total}</div>
+        <div className="mt-4 font-bold">
+          Total: ${total.toFixed(2)}
+        </div>
+
+        {totalUsd !== null && (
+          <div className="text-sm text-gray-500">
+            ≈ USD ${totalUsd.toFixed(2)}
+          </div>
+        )}
 
         <button
           onClick={() => setIsPaymentOpen(true)}
