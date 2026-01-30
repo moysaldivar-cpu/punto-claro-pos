@@ -10,7 +10,8 @@ import CajeroPOS from "@/pages/CajeroPOS";
 import Inventory from "@/pages/Inventory";
 import SalesHistory from "@/pages/SalesHistory";
 import SaleDetail from "@/pages/SaleDetail";
-import Reports from "@/pages/Reports"; // 🆕 NUEVO
+import Reports from "@/pages/Reports";
+import CashRegisterClosures from "@/pages/CashRegisterClosures";
 
 export default function Router() {
   return (
@@ -85,12 +86,22 @@ export default function Router() {
           }
         />
 
-        {/* 🆕 Reportes (admin) */}
+        {/* Reportes (admin) */}
         <Route
           path="reports"
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <Reports />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 🧾 Cortes de caja (admin) */}
+        <Route
+          path="cash-register-closures"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <CashRegisterClosures />
             </ProtectedRoute>
           }
         />
