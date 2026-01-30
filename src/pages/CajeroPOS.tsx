@@ -8,14 +8,16 @@ type ProductRow = {
   stock: number;
   min_stock: number;
   name: string;
-  price: number;
+  price: number; // precio base MXN
 };
 
 type CartItem = {
   product_id: string;
   name: string;
-  price: number;
+  price: number; // precio efectivo (puede incluir horario)
+  base_price: number; // precio base para referencia
   quantity: number;
+  hasSpecialPrice: boolean;
 };
 
 export default function CajeroPOS() {
@@ -26,8 +28,6 @@ export default function CajeroPOS() {
   const [loading, setLoading] = useState(true);
 
   const storeId = localStorage.getItem("store_id");
-
-  // 🔹 App settings (solo lectura)
   const { settings } = useAppSettings();
 
   useEffect(() => {
@@ -81,8 +81,38 @@ export default function CajeroPOS() {
     setLoading(false);
   }
 
+  // 🔹 Determina si el horario especial está activo
+  function isSpecialPricingActive(): {
+    active: boolean;
+    multiplier: number;
+  } {
+    const sp = settings.specialPricing;
+    if (!sp || !sp.enabled) return { active: false, multiplier: 1 };
+
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const [sh, sm] = sp.start.split(":").map(Number);
+    const [eh, em] = sp.end.split(":").map(Number);
+
+    const startMinutes = sh * 60 + sm;
+    const endMinutes = eh * 60 + em;
+
+    const active =
+      startMinutes <= endMinutes
+        ? nowMinutes >= startMinutes && nowMinutes <= endMinutes
+        : nowMinutes >= startMinutes || nowMinutes <= endMinutes;
+
+    return { active, multiplier: sp.multiplier };
+  }
+
   function addToCart(product: ProductRow) {
     if (product.stock <= 0) return;
+
+    const { active, multiplier } = isSpecialPricingActive();
+    const effectivePrice = active
+      ? Number((product.price * multiplier).toFixed(2))
+      : product.price;
 
     setCart((prev) => {
       const existing = prev.find(
@@ -102,8 +132,10 @@ export default function CajeroPOS() {
         {
           product_id: product.product_id,
           name: product.name,
-          price: product.price,
+          base_price: product.price,
+          price: effectivePrice,
           quantity: 1,
+          hasSpecialPrice: active,
         },
       ];
     });
@@ -211,8 +243,13 @@ export default function CajeroPOS() {
           >
             <span>
               {item.name} x{item.quantity}
+              {item.hasSpecialPrice && (
+                <span className="ml-1 text-xs text-blue-600">
+                  (horario)
+                </span>
+              )}
             </span>
-            <span>${item.price * item.quantity}</span>
+            <span>${(item.price * item.quantity).toFixed(2)}</span>
           </div>
         ))}
 
