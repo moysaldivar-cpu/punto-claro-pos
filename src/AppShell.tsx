@@ -1,6 +1,37 @@
 import { Outlet, NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
+function Section({ title }: { title: string }) {
+  return (
+    <div className="mt-4 mb-2 px-2 text-xs uppercase tracking-wide text-gray-400">
+      {title}
+    </div>
+  );
+}
+
+function Item({
+  to,
+  children,
+}: {
+  to: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `block px-3 py-2 rounded ${
+          isActive
+            ? "bg-gray-200 font-medium"
+            : "hover:bg-gray-100"
+        }`
+      }
+    >
+      {children}
+    </NavLink>
+  );
+}
+
 export default function AppShell() {
   const { user, signOut, role, loadingRole } = useAuth();
 
@@ -18,7 +49,7 @@ export default function AppShell() {
       <aside className="w-64 bg-white border-r flex flex-col">
         <div className="p-4 border-b">
           <h1 className="text-lg font-bold text-gray-800">
-            Punto Claro POS
+            Punto Claro
           </h1>
           <p className="text-xs text-gray-500 mt-1">
             {user.email}
@@ -28,110 +59,44 @@ export default function AppShell() {
           </p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 text-sm">
+        <nav className="flex-1 p-3 text-sm overflow-y-auto">
           {/* ADMIN */}
           {role === "admin" && (
             <>
-              <NavLink
-                to="/app/admin"
-                className={({ isActive }) =>
-                  `block px-3 py-2 rounded ${
-                    isActive
-                      ? "bg-gray-200 font-medium"
-                      : "hover:bg-gray-100"
-                  }`
-                }
-              >
-                Dashboard
-              </NavLink>
+              <Section title="Operación" />
+              <Item to="/app/admin">Dashboard</Item>
+              <Item to="/app/pos">Punto de venta</Item>
+              <Item to="/app/inventory">Inventario</Item>
+              <Item to="/app/products">Productos</Item>
 
-              <NavLink
-                to="/app/inventory"
-                className={({ isActive }) =>
-                  `block px-3 py-2 rounded ${
-                    isActive
-                      ? "bg-gray-200 font-medium"
-                      : "hover:bg-gray-100"
-                  }`
-                }
-              >
-                Inventario
-              </NavLink>
+              <Section title="Control" />
+              <Item to="/app/sales">Ventas</Item>
+              <Item to="/app/cash-register-closures">
+                Corte de caja
+              </Item>
+              <Item to="/app/reports">Reportes</Item>
 
-              <NavLink
-                to="/app/sales"
-                className={({ isActive }) =>
-                  `block px-3 py-2 rounded ${
-                    isActive
-                      ? "bg-gray-200 font-medium"
-                      : "hover:bg-gray-100"
-                  }`
-                }
-              >
-                Ventas
-              </NavLink>
-
-              {/* 🆕 Reportes (solo Admin) */}
-              <NavLink
-                to="/app/reports"
-                className={({ isActive }) =>
-                  `block px-3 py-2 rounded ${
-                    isActive
-                      ? "bg-gray-200 font-medium"
-                      : "hover:bg-gray-100"
-                  }`
-                }
-              >
-                Reportes
-              </NavLink>
+              <Section title="Administración" />
+              <Item to="/app/users">Usuarios</Item>
+              <Item to="/app/settings">Configuración</Item>
             </>
           )}
 
           {/* GERENTE */}
           {role === "gerente" && (
             <>
-              <NavLink
-                to="/app/gerente"
-                className={({ isActive }) =>
-                  `block px-3 py-2 rounded ${
-                    isActive
-                      ? "bg-gray-200 font-medium"
-                      : "hover:bg-gray-100"
-                  }`
-                }
-              >
-                Dashboard
-              </NavLink>
-
-              <NavLink
-                to="/app/inventory"
-                className={({ isActive }) =>
-                  `block px-3 py-2 rounded ${
-                    isActive
-                      ? "bg-gray-200 font-medium"
-                      : "hover:bg-gray-100"
-                  }`
-                }
-              >
-                Inventario
-              </NavLink>
+              <Section title="Operación" />
+              <Item to="/app/gerente">Dashboard</Item>
+              <Item to="/app/inventory">Inventario</Item>
             </>
           )}
 
           {/* CAJERO */}
           {role === "cajero" && (
-            <NavLink
-              to="/app/pos"
-              className={({ isActive }) =>
-                `block px-3 py-2 rounded ${
-                  isActive
-                    ? "bg-gray-200 font-medium"
-                    : "hover:bg-gray-100"
-                }`
-              }
-            >
-              Punto de Venta
-            </NavLink>
+            <>
+              <Section title="Operación" />
+              <Item to="/app/pos">Punto de venta</Item>
+            </>
           )}
         </nav>
 
@@ -147,14 +112,12 @@ export default function AppShell() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
         <header className="h-14 bg-white border-b flex items-center px-6">
           <h2 className="text-sm font-medium text-gray-700 capitalize">
             {role}
           </h2>
         </header>
 
-        {/* Content */}
         <main className="flex-1 p-6">
           <Outlet />
         </main>
