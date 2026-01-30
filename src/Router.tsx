@@ -12,6 +12,8 @@ import SalesHistory from "@/pages/SalesHistory";
 import SaleDetail from "@/pages/SaleDetail";
 import Reports from "@/pages/Reports";
 import CashRegisterClosures from "@/pages/CashRegisterClosures";
+import Settings from "@/pages/Settings";
+import Products from "@/pages/Products";
 
 export default function Router() {
   return (
@@ -30,6 +32,7 @@ export default function Router() {
       >
         <Route index element={<Navigate to="pos" replace />} />
 
+        {/* Admin */}
         <Route
           path="admin"
           element={
@@ -39,6 +42,7 @@ export default function Router() {
           }
         />
 
+        {/* Gerente */}
         <Route
           path="gerente"
           element={
@@ -48,6 +52,7 @@ export default function Router() {
           }
         />
 
+        {/* POS */}
         <Route
           path="pos"
           element={
@@ -57,6 +62,7 @@ export default function Router() {
           }
         />
 
+        {/* Inventario */}
         <Route
           path="inventory"
           element={
@@ -66,7 +72,17 @@ export default function Router() {
           }
         />
 
-        {/* Historial de ventas (admin) */}
+        {/* Productos (admin + gerente) */}
+        <Route
+          path="products"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "gerente"]}>
+              <Products />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Ventas */}
         <Route
           path="sales"
           element={
@@ -76,7 +92,6 @@ export default function Router() {
           }
         />
 
-        {/* Detalle de venta (admin) */}
         <Route
           path="sales/:saleId"
           element={
@@ -86,7 +101,7 @@ export default function Router() {
           }
         />
 
-        {/* Reportes (admin) */}
+        {/* Reportes */}
         <Route
           path="reports"
           element={
@@ -96,12 +111,22 @@ export default function Router() {
           }
         />
 
-        {/* 🧾 Cortes de caja (admin) */}
+        {/* Cortes de caja */}
         <Route
           path="cash-register-closures"
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <CashRegisterClosures />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Configuración */}
+        <Route
+          path="settings"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <Settings />
             </ProtectedRoute>
           }
         />
