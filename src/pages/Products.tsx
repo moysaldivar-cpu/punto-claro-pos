@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import AddProductModal from "@/components/AddProductModal";
+import AssignInventoryModal from "@/components/AssignInventoryModal";
 
 type Product = {
   id: string;
@@ -12,6 +14,9 @@ export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
+  const [inventoryProduct, setInventoryProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     loadProducts();
@@ -47,13 +52,12 @@ export default function Products() {
         <h1 className="text-2xl font-bold">Productos</h1>
         <button
           className="bg-black text-white px-4 py-2 rounded"
-          onClick={() => alert("Alta de producto (siguiente paso)")}
+          onClick={() => setIsAddOpen(true)}
         >
           Agregar producto
         </button>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="text-red-600 text-sm">
           {error}
@@ -68,15 +72,13 @@ export default function Products() {
               <th className="text-left px-4 py-2">Nombre</th>
               <th className="text-left px-4 py-2">SKU</th>
               <th className="text-right px-4 py-2">Precio</th>
+              <th className="text-center px-4 py-2">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {products.length === 0 && (
               <tr>
-                <td
-                  colSpan={3}
-                  className="text-center text-gray-500 py-6"
-                >
+                <td colSpan={4} className="text-center text-gray-500 py-6">
                   No hay productos registrados
                 </td>
               </tr>
@@ -91,15 +93,34 @@ export default function Products() {
                 <td className="px-4 py-2 text-right">
                   ${p.price.toFixed(2)}
                 </td>
+                <td className="px-4 py-2 text-center">
+                  <button
+                    className="text-sm underline"
+                    onClick={() => setInventoryProduct(p)}
+                  >
+                    Asignar inventario
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <p className="text-xs text-gray-400">
-        * Alta y edición de productos se implementa en el siguiente paso.
-      </p>
+      {/* Modales */}
+      <AddProductModal
+        open={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        onSaved={loadProducts}
+      />
+
+      <AssignInventoryModal
+        open={!!inventoryProduct}
+        productId={inventoryProduct?.id ?? null}
+        productName={inventoryProduct?.name ?? null}
+        onClose={() => setInventoryProduct(null)}
+        onSaved={() => {}}
+      />
     </div>
   );
 }
