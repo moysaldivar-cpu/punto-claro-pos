@@ -1,22 +1,19 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import AddProductModal from "@/components/AddProductModal";
-import AssignInventoryModal from "@/components/AssignInventoryModal";
+import EditProductModal from "@/components/EditProductModal";
 
 type Product = {
   id: string;
   name: string;
-  price: number;
   sku: string | null;
+  price: number;
+  active: boolean;
 };
 
 export default function Products() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isAddOpen, setIsAddOpen] = useState(false);
-
-  const [inventoryProduct, setInventoryProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     loadProducts();
@@ -24,102 +21,102 @@ export default function Products() {
 
   async function loadProducts() {
     setLoading(true);
-    setError(null);
 
     const { data, error } = await supabase
       .from("products")
-      .select("id, name, price, sku")
-      .order("name", { ascending: true });
+      .select("id, name, sku, price, active")
+      .order("name");
 
     if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
+      console.error("Error loading products:", error);
+      setProducts([]);
+    } else {
+      setProducts(data ?? []);
     }
 
-    setProducts(data ?? []);
     setLoading(false);
   }
 
+  async function toggleActive(product: Product) {
+    const { error } = await supabase
+      .from("products")
+      .update({ active: !product.active })
+      .eq("id", product.id);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    // refresca lista
+    loadProducts();
+  }
+
   if (loading) {
-    return <div className="p-6">Cargando productos…</div>;
+    return <div>Cargando productos…</div>;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Productos</h1>
-        <button
-          className="bg-black text-white px-4 py-2 rounded"
-          onClick={() => setIsAddOpen(true)}
-        >
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-xl font-bold">Productos</h1>
+        <button className="bg-black text-white px-4 py-2 rounded">
           Agregar producto
         </button>
       </div>
 
-      {error && (
-        <div className="text-red-600 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Tabla */}
-      <div className="bg-white border rounded overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
+      <table className="w-full border">
+        <thead className="bg-gray-100 text-left">
+          <tr>
+            <th className="p-2">Nombre</th>
+            <th className="p-2">SKU</th>
+            <th className="p-2">Precio</th>
+            <th className="p-2">Activo</th>
+            <th className="p-2">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {products.length === 0 && (
             <tr>
-              <th className="text-left px-4 py-2">Nombre</th>
-              <th className="text-left px-4 py-2">SKU</th>
-              <th className="text-right px-4 py-2">Precio</th>
-              <th className="text-center px-4 py-2">Acciones</th>
+              <td colSpan={5} className="p-4 text-center text-gray-500">
+                No hay productos registrados
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {products.length === 0 && (
-              <tr>
-                <td colSpan={4} className="text-center text-gray-500 py-6">
-                  No hay productos registrados
-                </td>
-              </tr>
-            )}
+          )}
 
-            {products.map((p) => (
-              <tr key={p.id} className="border-t">
-                <td className="px-4 py-2">{p.name}</td>
-                <td className="px-4 py-2 text-gray-500">
-                  {p.sku ?? "-"}
-                </td>
-                <td className="px-4 py-2 text-right">
-                  ${p.price.toFixed(2)}
-                </td>
-                <td className="px-4 py-2 text-center">
-                  <button
-                    className="text-sm underline"
-                    onClick={() => setInventoryProduct(p)}
-                  >
-                    Asignar inventario
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          {products.map((p) => (
+            <tr key={p.id} className="border-t">
+              <td className="p-2">{p.name}</td>
+              <td className="p-2">{p.sku ?? "-"}</td>
+              <td className="p-2">${p.price.toFixed(2)}</td>
+              <td className="p-2">
+                <input
+                  type="checkbox"
+                  checked={p.active}
+                  onChange={() => toggleActive(p)}
+                />
+              </td>
+              <td className="p-2 space-x-3">
+                <button
+                  onClick={() => setEditingProduct(p)}
+                  className="text-blue-600 underline text-sm"
+                >
+                  Editar
+                </button>
+                <button className="text-sm underline">
+                  Asignar inventario
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-      {/* Modales */}
-      <AddProductModal
-        open={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
+      <EditProductModal
+        open={!!editingProduct}
+        product={editingProduct}
+        onClose={() => setEditingProduct(null)}
         onSaved={loadProducts}
-      />
-
-      <AssignInventoryModal
-        open={!!inventoryProduct}
-        productId={inventoryProduct?.id ?? null}
-        productName={inventoryProduct?.name ?? null}
-        onClose={() => setInventoryProduct(null)}
-        onSaved={() => {}}
       />
     </div>
   );
