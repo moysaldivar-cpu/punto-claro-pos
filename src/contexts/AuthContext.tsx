@@ -1,16 +1,15 @@
 // src/contexts/AuthContext.tsx
-import { createContext, useContext, useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { createContext, useContext, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
 
-export type Role = 'admin' | 'gerente' | 'cajero';
+export type Role = "admin" | "gerente" | "cajero";
 
 type AuthContextType = {
   user: any;
   session: any;
   loading: boolean;
 
-  // 🔑 NUEVO
   role: Role | null;
   loadingRole: boolean;
 
@@ -25,10 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔑 NUEVO
   const [role, setRole] = useState<Role | null>(null);
   const [loadingRole, setLoadingRole] = useState(true);
 
+  // 🔐 Sesión
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -48,33 +47,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // 🔑 NUEVO: cargar rol cuando hay usuario
+  // 🔑 Rol
   useEffect(() => {
     if (!user) {
+      console.log("ℹ️ No hay usuario, limpiando rol");
       setRole(null);
       setLoadingRole(false);
       return;
     }
 
+    console.log("🟡 Usuario detectado, cargando rol:", user.id);
     loadUserRole(user.id);
   }, [user]);
 
   async function loadUserRole(userId: string) {
     setLoadingRole(true);
 
+    console.log("🟡 Consultando profiles por user_id:", userId);
+
     const { data, error } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
+      .from("profiles")
+      .select("role")
+      .eq("user_id", userId)
       .single();
 
+    console.log("🟢 Respuesta profiles:", { data, error });
+
     if (error) {
-      console.error('Error loading role from profiles:', error);
+      console.error("🔴 Error cargando rol:", error);
       setRole(null);
       setLoadingRole(false);
       return;
     }
 
+    console.log("✅ Rol asignado:", data.role);
     setRole(data.role as Role);
     setLoadingRole(false);
   }
@@ -112,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error('useAuth debe usarse dentro de AuthProvider');
+    throw new Error("useAuth debe usarse dentro de AuthProvider");
   }
   return ctx;
 }
