@@ -1,148 +1,173 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
 
-type SaleItem = {
-  id: string;
-  sale_id: string;
-  product_id: string;
-  quantity: number;
-};
-
-type Product = {
-  id: string;
-  name: string;
-  sku: string;
-  price: number;
-};
-
-type SaleItemView = {
-  id: string;
+type Item = {
   product_name: string;
-  sku: string;
   quantity: number;
   price: number;
+};
+
+type Sale = {
+  id: string;
+  folio: string;
+  created_at: string;
+  user_name: string;
+  payment_method: string;
   subtotal: number;
+  tax: number;
+  total: number;
+  payment_cash: number;
+  payment_card: number;
+  payment_usd: number;
 };
 
 export default function SaleDetail() {
-  const { role, loadingRole } = useAuth();
-  const isAdmin = role === "admin";
+  const { id } = useParams();
+  const navigate = useNavigate();
 
-  const { saleId } = useParams<{ saleId: string }>();
-
+  const [sale, setSale] = useState<Sale | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<SaleItemView[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAdmin && saleId) {
-      loadSaleItems();
-    }
-  }, [isAdmin, saleId]);
+    load();
+  }, [id]);
 
-  async function loadSaleItems() {
+  async function load() {
+    if (!id) return;
+
     setLoading(true);
-    setError(null);
 
-    const { data: saleItems, error: itemsError } = await supabase
+    const { data: saleData } = await supabase
+      .from("sales")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    setSale(saleData);
+
+    const { data: itemsData } = await supabase
       .from("sales_items")
-      .select("id, sale_id, product_id, quantity")
-      .eq("sale_id", saleId);
-
-    if (itemsError || !saleItems) {
-      setError("No se pudieron cargar los productos de la venta");
-      setLoading(false);
-      return;
-    }
-
-    const productIds = saleItems.map((i: SaleItem) => i.product_id);
-
-    const { data: products, error: productsError } = await supabase
-      .from("products")
-      .select("id, name, sku, price")
-      .in("id", productIds);
-
-    if (productsError || !products) {
-      setError("No se pudieron cargar los productos");
-      setLoading(false);
-      return;
-    }
-
-    const merged: SaleItemView[] = saleItems.map((item: SaleItem) => {
-      const product = products.find(
-        (p: Product) => p.id === item.product_id
-      );
-
-      const price = product?.price ?? 0;
-
-      return {
-        id: item.id,
-        product_name: product?.name ?? "—",
-        sku: product?.sku ?? "—",
-        quantity: item.quantity,
+      .select(`
+        quantity,
         price,
-        subtotal: price * item.quantity,
-      };
-    });
+        products (name)
+      `)
+      .eq("sale_id", id);
 
-    setItems(merged);
+    const mapped =
+      itemsData?.map((i: any) => ({
+        product_name: i.products?.name,
+        quantity: i.quantity,
+        price: i.price,
+      })) || [];
+
+    setItems(mapped);
     setLoading(false);
   }
 
-  if (loadingRole || loading) {
-    return <div className="p-6">Cargando detalle de venta…</div>;
+  function imprimir() {
+    window.print();
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="p-6 text-red-600">
-        No tienes permiso para ver esta venta.
-      </div>
-    );
-  }
-
-  if (error) {
-    return <div className="p-6 text-red-600">{error}</div>;
-  }
-
-  const total = items.reduce((sum, i) => sum + i.subtotal, 0);
+  if (loading) return <p>Cargando ticket...</p>;
+  if (!sale) return <p>No encontrado</p>;
 
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold mb-4">
-        Detalle de venta
-      </h1>
+    <div className="max-w-xl mx-auto bg-white shadow rounded p-6 print:shadow-none print:p-0">
+      
+      {/* CABECERA */}
+      <div className="text-center border-b pb-3 mb-3">
+        <h2 className="text-xl font-bold">PUNTO CLARO</h2>
+        <p className="text-sm text-gray-500">Ticket de venta</p>
+      </div>
 
-      <table className="w-full border mb-4">
+      {/* INFO GENERAL */}
+      <div className="text-sm mb-4 space-y-1">
+        <p><strong>Folio:</strong> {sale.folio}</p>
+        <p><strong>Fecha:</strong> {new Date(sale.created_at).toLocaleString()}</p>
+        <p><strong>Cajero:</strong> {sale.user_name}</p>
+        <p><strong>Método:</strong> {sale.payment_method}</p>
+      </div>
+
+      {/* PRODUCTOS */}
+      <table className="w-full text-sm mb-4">
         <thead>
           <tr className="border-b">
-            <th className="p-2 text-left">Producto</th>
-            <th className="p-2 text-left">SKU</th>
-            <th className="p-2 text-center">Cantidad</th>
-            <th className="p-2 text-center">Precio</th>
-            <th className="p-2 text-center">Subtotal</th>
+            <th className="text-left">Producto</th>
+            <th className="text-center">Cant</th>
+            <th className="text-right">Precio</th>
+            <th className="text-right">Total</th>
           </tr>
         </thead>
+
         <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b">
-              <td className="p-2">{item.product_name}</td>
-              <td className="p-2">{item.sku}</td>
-              <td className="p-2 text-center">{item.quantity}</td>
-              <td className="p-2 text-center">${item.price}</td>
-              <td className="p-2 text-center font-semibold">
-                ${item.subtotal}
+          {items.map((it, i) => (
+            <tr key={i} className="border-b">
+              <td>{it.product_name}</td>
+              <td className="text-center">{it.quantity}</td>
+              <td className="text-right">
+                ${it.price.toFixed(2)}
+              </td>
+              <td className="text-right">
+                ${(it.price * it.quantity).toFixed(2)}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="text-right font-bold">
-        Total: ${total}
+      {/* TOTALES */}
+      <div className="text-right space-y-1 text-sm border-t pt-2">
+        <p>Subtotal: ${sale.subtotal.toFixed(2)}</p>
+        <p>Impuesto: ${sale.tax.toFixed(2)}</p>
+
+        <p className="font-bold text-base">
+          TOTAL: ${sale.total.toFixed(2)}
+        </p>
       </div>
+
+      {/* DESGLOSE DE PAGOS */}
+      <div className="mt-3 text-sm border-t pt-2">
+        <p className="font-semibold mb-1">Pagos:</p>
+
+        {sale.payment_cash > 0 && (
+          <p>Efectivo: ${sale.payment_cash.toFixed(2)}</p>
+        )}
+
+        {sale.payment_card > 0 && (
+          <p>Tarjeta: ${sale.payment_card.toFixed(2)}</p>
+        )}
+
+        {sale.payment_usd > 0 && (
+          <p>USD: ${sale.payment_usd.toFixed(2)}</p>
+        )}
+      </div>
+
+      {/* PIE */}
+      <div className="text-center text-xs text-gray-500 mt-4 border-t pt-3">
+        <p>Gracias por su compra</p>
+        <p>Conserve este ticket</p>
+      </div>
+
+      {/* BOTONES (NO SE IMPRIMEN) */}
+      <div className="mt-4 flex gap-2 print:hidden">
+        <button
+          onClick={() => navigate(-1)}
+          className="border px-3 py-2 rounded w-full"
+        >
+          Volver
+        </button>
+
+        <button
+          onClick={imprimir}
+          className="bg-gray-900 text-white px-3 py-2 rounded w-full"
+        >
+          Imprimir ticket
+        </button>
+      </div>
+
     </div>
   );
 }

@@ -1,349 +1,200 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useNavigate } from "react-router-dom";
 
-type SaleRow = {
+type Sale = {
   id: string;
-  folio: string | null;
-  total: number | null;
-  subtotal: number | null;
-  tax: number | null;
-  payment_method: string;
-  payment_cash: number | null;
-  payment_card: number | null;
-  payment_usd: number | null;
-  user_name: string | null;
+  folio: string;
   created_at: string;
+  user_name: string;
+  payment_method: string;
+  total: number;
+  payment_cash: number;
+  payment_card: number;
+  payment_usd: number;
 };
 
-type DateFilter = "today" | "yesterday" | "month" | "last30" | "all";
-
-function startOfLocalDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function endOfLocalDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
-}
+type Period = "today" | "yesterday" | "month";
 
 export default function Sales() {
-  const [sales, setSales] = useState<SaleRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  // ✅ Default: últimos 30 días (útil para pruebas y operación)
-  const [filter, setFilter] = useState<DateFilter>("last30");
-  const [selected, setSelected] = useState<SaleRow | null>(null);
+  const [rows, setRows] = useState<Sale[]>([]);
+  const [period, setPeriod] = useState<Period>("today");
+  const [loading, setLoading] = useState(false);
+
+  const [totals, setTotals] = useState({
+    total: 0,
+    cash: 0,
+    card: 0,
+    usd: 0,
+  });
 
   useEffect(() => {
-    const loadSales = async () => {
-      setLoading(true);
-      setError(null);
+    load();
+  }, [period]);
 
-      const storeId = localStorage.getItem("store_id");
-      if (!storeId) {
-        setError("No hay sucursal seleccionada.");
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("sales")
-        .select(`
-          id,
-          folio,
-          total,
-          subtotal,
-          tax,
-          payment_method,
-          payment_cash,
-          payment_card,
-          payment_usd,
-          user_name,
-          created_at
-        `)
-        .eq("store_id", storeId)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Error loading sales:", error);
-        setError("No se pudieron cargar las ventas.");
-        setSales([]);
-      } else {
-        setSales(data ?? []);
-      }
-
-      setLoading(false);
-    };
-
-    loadSales();
-  }, []);
-
-  const filteredSales = useMemo(() => {
-    if (filter === "all") return sales;
-
+  function getRange() {
     const now = new Date();
 
-    // Ventanas por operación diaria: local day boundaries
-    if (filter === "today") {
-      const start = startOfLocalDay(now);
-      const end = endOfLocalDay(now);
-      return sales.filter((s) => {
-        const d = new Date(s.created_at);
-        return d >= start && d <= end;
-      });
-    }
-
-    if (filter === "yesterday") {
-      const y = new Date(now);
-      y.setDate(now.getDate() - 1);
-      const start = startOfLocalDay(y);
-      const end = endOfLocalDay(y);
-      return sales.filter((s) => {
-        const d = new Date(s.created_at);
-        return d >= start && d <= end;
-      });
-    }
-
-    if (filter === "month") {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (period === "today") {
+      const start = new Date(now);
       start.setHours(0, 0, 0, 0);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      end.setHours(0, 0, 0, 0);
 
-      return sales.filter((s) => {
-        const d = new Date(s.created_at);
-        return d >= start && d < end;
-      });
+      const end = new Date(now);
+      end.setHours(23, 59, 59, 999);
+
+      return { start, end };
     }
 
-    // Últimos 30 días: rolling window (útil siempre)
-    if (filter === "last30") {
-      const end = new Date();
-      const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return sales.filter((s) => {
-        const d = new Date(s.created_at);
-        return d >= start && d <= end;
-      });
+    if (period === "yesterday") {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 1);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(now);
+      end.setDate(end.getDate() - 1);
+      end.setHours(23, 59, 59, 999);
+
+      return { start, end };
     }
 
-    return sales;
-  }, [sales, filter]);
+    // month
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-  const totals = useMemo(() => {
-    let total = 0;
-    let cash = 0;
-    let card = 0;
-    let usd = 0;
+    return { start, end };
+  }
 
-    filteredSales.forEach((s) => {
-      if (s.total == null) return;
+  async function load() {
+    setLoading(true);
 
-      total += s.total;
-      cash += s.payment_cash ?? 0;
-      card += s.payment_card ?? 0;
-      usd += s.payment_usd ?? 0;
+    const { start, end } = getRange();
+
+    const { data, error } = await supabase
+      .from("sales")
+      .select("*")
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString())
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      setRows([]);
+      setTotals({ total: 0, cash: 0, card: 0, usd: 0 });
+      setLoading(false);
+      return;
+    }
+
+    const list = (data || []) as Sale[];
+
+    setRows(list);
+
+    setTotals({
+      total: list.reduce((a, b) => a + (b.total || 0), 0),
+      cash: list.reduce((a, b) => a + (b.payment_cash || 0), 0),
+      card: list.reduce((a, b) => a + (b.payment_card || 0), 0),
+      usd: list.reduce((a, b) => a + (b.payment_usd || 0), 0),
     });
 
-    return { total, cash, card, usd };
-  }, [filteredSales]);
-
-  const filterLabel =
-    filter === "today"
-      ? "Hoy"
-      : filter === "yesterday"
-      ? "Ayer"
-      : filter === "month"
-      ? "Este mes"
-      : filter === "last30"
-      ? "Últimos 30 días"
-      : "Todas";
+    setLoading(false);
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Ventas</h1>
-          <p className="text-sm text-gray-500">
-            Filtro: <span className="font-medium">{filterLabel}</span> ·{" "}
-            {filteredSales.length} ventas
-          </p>
-        </div>
-      </div>
+    <div>
+      <h1 className="text-2xl font-bold mb-4">Ventas</h1>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-2 mb-4">
         <button
-          onClick={() => setFilter("today")}
-          className={`px-3 py-1 rounded border text-sm ${
-            filter === "today" ? "bg-gray-800 text-white" : "bg-white"
+          onClick={() => setPeriod("today")}
+          className={`px-3 py-1 border rounded ${
+            period === "today" ? "bg-gray-900 text-white" : ""
           }`}
         >
           Hoy
         </button>
+
         <button
-          onClick={() => setFilter("yesterday")}
-          className={`px-3 py-1 rounded border text-sm ${
-            filter === "yesterday" ? "bg-gray-800 text-white" : "bg-white"
+          onClick={() => setPeriod("yesterday")}
+          className={`px-3 py-1 border rounded ${
+            period === "yesterday" ? "bg-gray-900 text-white" : ""
           }`}
         >
           Ayer
         </button>
+
         <button
-          onClick={() => setFilter("month")}
-          className={`px-3 py-1 rounded border text-sm ${
-            filter === "month" ? "bg-gray-800 text-white" : "bg-white"
+          onClick={() => setPeriod("month")}
+          className={`px-3 py-1 border rounded ${
+            period === "month" ? "bg-gray-900 text-white" : ""
           }`}
         >
           Este mes
         </button>
-
-        <button
-          onClick={() => setFilter("last30")}
-          className={`px-3 py-1 rounded border text-sm ${
-            filter === "last30" ? "bg-gray-800 text-white" : "bg-white"
-          }`}
-        >
-          Últimos 30 días
-        </button>
-
-        <button
-          onClick={() => setFilter("all")}
-          className={`px-3 py-1 rounded border text-sm ${
-            filter === "all" ? "bg-gray-800 text-white" : "bg-white"
-          }`}
-        >
-          Todas
-        </button>
       </div>
 
       {/* Totales */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white border rounded p-4">
-          <p className="text-xs text-gray-500">Total</p>
-          <p className="text-xl font-bold">${totals.total.toFixed(2)}</p>
-        </div>
-
-        <div className="bg-white border rounded p-4">
-          <p className="text-xs text-gray-500">Efectivo</p>
-          <p>${totals.cash.toFixed(2)}</p>
-        </div>
-
-        <div className="bg-white border rounded p-4">
-          <p className="text-xs text-gray-500">Tarjeta</p>
-          <p>${totals.card.toFixed(2)}</p>
-        </div>
-
-        <div className="bg-white border rounded p-4">
-          <p className="text-xs text-gray-500">USD</p>
-          <p>${totals.usd.toFixed(2)}</p>
-        </div>
+      <div className="grid grid-cols-4 gap-4 mb-4">
+        <Card title="Total" value={totals.total} />
+        <Card title="Efectivo" value={totals.cash} />
+        <Card title="Tarjeta" value={totals.card} />
+        <Card title="USD" value={totals.usd} />
       </div>
 
-      {loading && <div className="text-gray-500 text-sm">Cargando ventas…</div>}
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded">
-          {error}
-        </div>
-      )}
-
-      {!loading && !error && (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border text-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-3 py-2 text-left">Folio</th>
-                <th className="border px-3 py-2 text-left">Fecha</th>
-                <th className="border px-3 py-2 text-left">Usuario</th>
-                <th className="border px-3 py-2 text-left">Método</th>
-                <th className="border px-3 py-2 text-right">Total</th>
+      {/* Tabla */}
+      <div className="bg-white rounded border">
+        {loading ? (
+          <p className="p-4 text-gray-500">Cargando ventas...</p>
+        ) : rows.length === 0 ? (
+          <p className="p-4 text-gray-500">
+            No hay ventas para este periodo.
+          </p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-gray-50">
+                <th className="p-2 text-left">Folio</th>
+                <th className="p-2 text-left">Fecha</th>
+                <th className="p-2 text-left">Usuario</th>
+                <th className="p-2 text-left">Método</th>
+                <th className="p-2 text-right">Total</th>
               </tr>
             </thead>
+
             <tbody>
-              {filteredSales.map((s) => (
+              {rows.map((v) => (
                 <tr
-                  key={s.id}
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => setSelected(s)}
+                  key={v.id}
+                  className="border-b hover:bg-gray-50 cursor-pointer"
+                  onClick={() => navigate(`/app/sale/${v.id}`)}
                 >
-                  <td className="border px-3 py-2">{s.folio ?? "—"}</td>
-                  <td className="border px-3 py-2">
-                    {new Date(s.created_at).toLocaleString()}
+                  <td className="p-2">{v.folio}</td>
+                  <td className="p-2">
+                    {new Date(v.created_at).toLocaleString()}
                   </td>
-                  <td className="border px-3 py-2">{s.user_name ?? "—"}</td>
-                  <td className="border px-3 py-2 capitalize">
-                    {s.payment_method}
+                  <td className="p-2">{v.user_name}</td>
+                  <td className="p-2 capitalize">
+                    {v.payment_method}
                   </td>
-                  <td className="border px-3 py-2 text-right font-medium">
-                    {s.total !== null ? `$${s.total.toFixed(2)}` : "—"}
+                  <td className="p-2 text-right">
+                    ${v.total.toFixed(2)}
                   </td>
                 </tr>
               ))}
-
-              {filteredSales.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="border px-3 py-4 text-center text-gray-500"
-                  >
-                    No hay ventas para este periodo.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
+    </div>
+  );
+}
 
-      {/* Modal Detalle */}
-      {selected && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded p-6 w-full max-w-md space-y-3">
-            <div className="flex items-start justify-between gap-4">
-              <h2 className="text-lg font-bold">
-                Detalle de venta {selected.folio ?? "—"}
-              </h2>
-              <button
-                onClick={() => setSelected(null)}
-                className="text-sm text-gray-500 hover:underline"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <p className="text-sm text-gray-500">
-              {new Date(selected.created_at).toLocaleString()}
-            </p>
-
-            <div className="space-y-1">
-              <p>Subtotal: {selected.subtotal !== null ? `$${selected.subtotal.toFixed(2)}` : "—"}</p>
-              <p>Impuesto: {selected.tax !== null ? `$${selected.tax.toFixed(2)}` : "—"}</p>
-              <p className="font-bold">
-                Total: {selected.total !== null ? `$${selected.total.toFixed(2)}` : "—"}
-              </p>
-            </div>
-
-            <hr />
-
-            <div className="space-y-1">
-              <p>Efectivo: ${((selected.payment_cash ?? 0) as number).toFixed(2)}</p>
-              <p>Tarjeta: ${((selected.payment_card ?? 0) as number).toFixed(2)}</p>
-              <p>USD: ${((selected.payment_usd ?? 0) as number).toFixed(2)}</p>
-            </div>
-
-            <button
-              onClick={() => setSelected(null)}
-              className="mt-3 w-full border rounded py-2"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      )}
+function Card({ title, value }: { title: string; value: number }) {
+  return (
+    <div className="bg-white border rounded p-4">
+      <p className="text-xs text-gray-500">{title}</p>
+      <p className="text-xl font-bold">${value.toFixed(2)}</p>
     </div>
   );
 }

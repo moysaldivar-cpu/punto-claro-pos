@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import PaymentModal from "@/components/PaymentModal";
-import { useAppSettings } from "@/hooks/useAppSettings";
+import { useAuth } from "@/contexts/AuthContext";
 
 type ProductRow = {
   product_id: string;
   stock: number;
-  min_stock: number;
   name: string;
   price: number;
 };
@@ -19,95 +18,98 @@ type CartItem = {
 };
 
 export default function CajeroPOS() {
+  const { user } = useAuth();
+
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
 
   const storeId = localStorage.getItem("store_id");
-  const { settings } = useAppSettings();
 
   useEffect(() => {
     loadProducts();
   }, []);
 
   useEffect(() => {
-    const newTotal = cart.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
-    setTotal(newTotal);
+    const t = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    setTotal(t);
   }, [cart]);
 
   async function loadProducts() {
     if (!storeId) return;
 
-    setLoading(true);
-
-    const { data, error } = await supabase
+    const { data: inv } = await supabase
       .from("inventory")
-      .select(
-        `
-        product_id,
-        stock,
-        min_stock,
-        products!inner (
-          name,
-          price,
-          active
-        )
-      `
-      )
-      .eq("store_id", storeId)
-      .eq("products.active", true); // ✅ FILTRO CLAVE
+      .select("product_id, stock")
+      .eq("store_id", storeId);
 
-    if (error) {
-      console.error("Error loading products:", error);
+    const { data: prods } = await supabase
+      .from("products")
+      .select("id, name, price");
+
+    if (!inv || !prods) {
       setProducts([]);
-      setLoading(false);
       return;
     }
 
-    const mapped: ProductRow[] =
-      data?.map((row: any) => ({
-        product_id: row.product_id,
-        stock: row.stock,
-        min_stock: row.min_stock,
-        name: row.products.name,
-        price: row.products.price,
-      })) ?? [];
+    const merged: ProductRow[] = inv.map((i) => {
+      const p = prods.find((x) => x.id === i.product_id);
 
-    setProducts(mapped);
-    setLoading(false);
+      return {
+        product_id: i.product_id,
+        stock: i.stock,
+        name: p?.name || "Sin nombre",
+        price: p?.price || 0,
+      };
+    });
+
+    setProducts(merged);
   }
 
-  function addToCart(product: ProductRow) {
-    if (product.stock <= 0) return;
+  function addToCart(p: ProductRow) {
+    if (p.stock <= 0) {
+      alert("Producto sin stock");
+      return;
+    }
 
     setCart((prev) => {
-      const existing = prev.find(
-        (i) => i.product_id === product.product_id
-      );
+      const exist = prev.find((x) => x.product_id === p.product_id);
 
-      if (existing) {
-        return prev.map((i) =>
-          i.product_id === product.product_id
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
+      if (exist) {
+        return prev.map((x) =>
+          x.product_id === p.product_id
+            ? { ...x, quantity: x.quantity + 1 }
+            : x
         );
       }
 
       return [
         ...prev,
         {
-          product_id: product.product_id,
-          name: product.name,
-          price: product.price,
+          product_id: p.product_id,
+          name: p.name,
+          price: p.price,
           quantity: 1,
         },
       ];
     });
+  }
+
+  function removeOne(product_id: string) {
+    setCart((prev) =>
+      prev
+        .map((item) =>
+          item.product_id === product_id
+            ? { ...item, quantity: item.quantity - 1 }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
+  }
+
+  function clearCart() {
+    setCart([]);
   }
 
   async function handleConfirmPayment(payload: {
@@ -115,127 +117,127 @@ export default function CajeroPOS() {
     payment_cash: number;
     payment_card: number;
   }) {
-    if (!storeId) return;
-
-    const itemsPayload = cart.map((item) => ({
-      product_id: item.product_id,
-      quantity: item.quantity,
-    }));
-
-    const { error } = await supabase.rpc("create_sale_with_items", {
-      p_store_id: storeId,
-      p_user_name: "Cajero",
-      p_items: itemsPayload,
-      p_payment_method: payload.payment_method,
-      p_payment_cash: payload.payment_cash,
-      p_payment_card: payload.payment_card,
-      p_payment_usd: 0,
-    });
-
-    if (error) {
-      alert(error.message);
+    if (!storeId) {
+      alert("No hay sucursal definida");
       return;
     }
 
-    setCart([]);
-    setIsPaymentOpen(false);
-    await loadProducts();
-  }
+    try {
+      // 1. Verificar caja abierta
+      const { data: openCut } = await supabase
+        .from("cash_register_closures")
+        .select("id")
+        .eq("store_id", storeId)
+        .is("closed_at", null)
+        .single();
 
-  if (loading) {
-    return <div className="p-6">Cargando productos…</div>;
-  }
+      if (!openCut) {
+        alert("No hay caja abierta. Abre caja antes de vender.");
+        return;
+      }
 
-  const usdRate = settings.usdExchangeRate;
-  const totalUsd =
-    usdRate && usdRate > 0 ? total / usdRate : null;
+      // 2. Crear venta
+      const { data: saleId, error } = await supabase.rpc(
+        "create_sale_with_cash_register",
+        {
+          p_store_id: storeId,
+          p_subtotal: total,
+          p_tax: 0,
+          p_total: total,
+          p_payment_method: payload.payment_method,
+          p_user_name: user?.email || "Cajero",
+          p_payment_cash: payload.payment_cash,
+          p_payment_card: payload.payment_card,
+          p_payment_usd: 0,
+          p_folio: "AUTO",
+        }
+      );
+
+      if (error) throw error;
+
+      // 3. Items
+      for (const item of cart) {
+        await supabase.from("sales_items").insert({
+          sale_id: saleId,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          price: item.price,
+        });
+      }
+
+      alert("Venta registrada correctamente");
+
+      setCart([]);
+      setIsPaymentOpen(false);
+
+      await loadProducts();
+    } catch (e: any) {
+      alert("Error al guardar venta: " + e.message);
+    }
+  }
 
   return (
-    <div className="p-6 grid grid-cols-3 gap-6">
-      {/* Productos */}
-      <div className="col-span-2">
-        <h2 className="text-xl font-bold mb-4">Productos</h2>
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-4">Punto de Venta</h1>
 
-        <div className="grid grid-cols-3 gap-4">
-          {products.map((p) => {
-            const isOut = p.stock === 0;
-            const isLow = p.stock > 0 && p.stock <= p.min_stock;
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 grid grid-cols-2 gap-4">
+          {products.map((p) => (
+            <button
+              key={p.product_id}
+              className="border p-3 text-left"
+              onClick={() => addToCart(p)}
+            >
+              <div className="font-semibold">
+                {p.name} – ${p.price}
+              </div>
 
-            return (
+              <div className="text-sm text-gray-600">
+                Stock: {p.stock}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="border p-4 rounded">
+          <h2 className="font-bold mb-2">Carrito</h2>
+
+          {cart.map((c) => (
+            <div
+              key={c.product_id}
+              className="flex justify-between items-center mb-1"
+            >
+              <span>
+                {c.name} x {c.quantity}
+              </span>
+
               <button
-                key={p.product_id}
-                onClick={() => addToCart(p)}
-                disabled={isOut}
-                className={`border rounded p-4 text-left relative ${
-                  isOut
-                    ? "opacity-40 cursor-not-allowed"
-                    : "hover:bg-gray-100"
-                }`}
+                className="text-red-600 font-bold px-2"
+                onClick={() => removeOne(c.product_id)}
               >
-                <div className="font-semibold">{p.name}</div>
-                <div>${p.price.toFixed(2)}</div>
-                <div className="text-sm text-gray-500">
-                  Stock: {p.stock}
-                </div>
-
-                {isLow && (
-                  <span className="absolute top-2 right-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded">
-                    Stock bajo
-                  </span>
-                )}
-
-                {isOut && (
-                  <span className="absolute top-2 right-2 text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded">
-                    Sin stock
-                  </span>
-                )}
+                -
               </button>
-            );
-          })}
-        </div>
-      </div>
+            </div>
+          ))}
 
-      {/* Ticket */}
-      <div>
-        <h2 className="text-xl font-bold mb-4">Ticket</h2>
+          <div className="mt-2 font-bold">Total: ${total}</div>
 
-        {cart.length === 0 && (
-          <div className="text-sm text-gray-500 mb-2">
-            Agrega productos para comenzar
-          </div>
-        )}
-
-        {cart.map((item) => (
-          <div
-            key={item.product_id}
-            className="flex justify-between mb-2"
+          <button
+            className="bg-blue-500 text-white px-4 py-2 mt-2 w-full"
+            onClick={() => setIsPaymentOpen(true)}
           >
-            <span>
-              {item.name} x{item.quantity}
-            </span>
-            <span>
-              ${(item.price * item.quantity).toFixed(2)}
-            </span>
-          </div>
-        ))}
+            Cobrar
+          </button>
 
-        <div className="mt-4 font-bold">
-          Total: ${total.toFixed(2)}
+          {cart.length > 0 && (
+            <button
+              className="bg-red-500 text-white px-4 py-2 mt-2 w-full"
+              onClick={clearCart}
+            >
+              Vaciar carrito
+            </button>
+          )}
         </div>
-
-        {totalUsd !== null && (
-          <div className="text-sm text-gray-500">
-            ≈ USD ${totalUsd.toFixed(2)}
-          </div>
-        )}
-
-        <button
-          onClick={() => setIsPaymentOpen(true)}
-          className="mt-4 w-full bg-black text-white py-2 rounded disabled:opacity-50"
-          disabled={cart.length === 0}
-        >
-          Cobrar
-        </button>
       </div>
 
       <PaymentModal

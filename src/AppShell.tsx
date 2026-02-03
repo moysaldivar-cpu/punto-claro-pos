@@ -29,7 +29,6 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen flex bg-gray-100">
-      {/* Sidebar */}
       <aside className="w-64 bg-white border-r flex flex-col">
         <div className="p-4 border-b">
           <h1 className="text-lg font-bold text-gray-800">Punto Claro</h1>
@@ -40,32 +39,43 @@ export default function AppShell() {
         </div>
 
         <nav className="flex-1 p-4 text-sm space-y-6">
-          {/* OPERACIÓN */}
+
           <div>
             <p className="text-xs text-gray-400 mb-2 uppercase">Operación</p>
-            <Item to="/app/admin" label="Dashboard (Admin)" />
-            <Item to="/app/gerente" label="Dashboard (Gerente)" />
+
             <Item to="/app/pos" label="Punto de venta" />
-            <Item to="/app/inventory" label="Inventario" />
-            <Item to="/app/products" label="Productos" />
-          </div>
-
-          {/* CONTROL */}
-          <div>
-            <p className="text-xs text-gray-400 mb-2 uppercase">Control</p>
-            <Item to="/app/sales" label="Ventas" />
             <Item to="/app/cash-register" label="Corte de caja" />
-            <Item to="/app/reports" label="Reportes" />
+            <Item to="/app/cerrar-caja" label="Cerrar caja" />
+            <Item to="/app/inventory" label="Inventario" />
+
+            {(role === "admin" || role === "gerente") && (
+              <Item to="/app/products" label="Productos" />
+            )}
           </div>
 
-          {/* ADMINISTRACIÓN */}
-          <div>
-            <p className="text-xs text-gray-400 mb-2 uppercase">
-              Administración
-            </p>
-            <Item to="/app/users" label="Usuarios" />
-            <Item to="/app/settings" label="Configuración" />
-          </div>
+          {role === "admin" && (
+            <div>
+              <p className="text-xs text-gray-400 mb-2 uppercase">Control</p>
+
+              <Item to="/app/sales" label="Ventas" />
+              <Item to="/app/reports" label="Reportes" />
+
+              {/* 🆕 */}
+              <Item to="/app/cierres-admin" label="Cierres (Admin)" />
+            </div>
+          )}
+
+          {role === "admin" && (
+            <div>
+              <p className="text-xs text-gray-400 mb-2 uppercase">
+                Administración
+              </p>
+
+              <Item to="/app/users" label="Usuarios" />
+              <Item to="/app/settings" label="Configuración" />
+            </div>
+          )}
+
         </nav>
 
         <div className="p-4 border-t">
@@ -78,7 +88,6 @@ export default function AppShell() {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col">
         <main className="flex-1 p-6">
           <Outlet />
