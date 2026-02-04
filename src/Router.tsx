@@ -1,20 +1,20 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import AppShell from "./AppShell";
+import AppShell from "@/AppShell";
 
-import RoleGuard from "./components/RoleGuard";
+import RoleGuard from "@/components/RoleGuard";
 
-import CajeroPOS from "./pages/CajeroPOS";
-import Inventory from "./pages/Inventory";
-import Products from "./pages/Products";
-import Sales from "./pages/Sales";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
-import Users from "./pages/Users";
-import CashRegisterClosures from "./pages/CashRegisterClosures";
-import SaleDetail from "./pages/SaleDetail";
+import CajeroPOS from "@/pages/CajeroPOS";
+import Inventory from "@/pages/Inventory";
+import Products from "@/pages/Products";
+import Sales from "@/pages/Sales";
+import Reports from "@/pages/Reports";
+import Settings from "@/pages/Settings";
+import Users from "@/pages/Users";
+import CashRegisterClosures from "@/pages/CashRegisterClosures";
+import SaleDetail from "@/pages/SaleDetail";
 
-import CerrarCaja from "./pages/CerrarCaja";
-import CierreAdmin from "./pages/CierreAdmin";
+import CerrarCaja from "@/pages/CerrarCaja";
+import CierreAdmin from "@/pages/CierreAdmin";
 
 export default function Router() {
   return (
