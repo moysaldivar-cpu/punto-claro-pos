@@ -4,7 +4,7 @@ import AppShell from "./AppShell";
 import RoleGuard from "./components/RoleGuard";
 
 import CajeroPOS from "./pages/CajeroPOS";
-import Inventory from "./pages/inventory";
+import Inventory from "./pages/Inventory";
 import Products from "./pages/Products";
 import Sales from "./pages/Sales";
 import Reports from "./pages/Reports";
