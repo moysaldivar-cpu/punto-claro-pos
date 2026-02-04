@@ -3,25 +3,24 @@ import AppShell from "./AppShell";
 
 import RoleGuard from "./components/RoleGuard";
 
-// 🔹 PÁGINAS PRINCIPALES (usando alias @/)
-import CajeroPOS from "@/pages/CajeroPOS";
-import Inventory from "@/pages/Inventory";
-import Products from "@/pages/Products";
-import Sales from "@/pages/Sales";
-import Reports from "@/pages/Reports";
-import Settings from "@/pages/Settings";
-import Users from "@/pages/Users";
-import CashRegisterClosures from "@/pages/CashRegisterClosures";
-import SaleDetail from "@/pages/SaleDetail";
+import CajeroPOS from "./pages/CajeroPOS";
+import Inventory from "./pages/inventory";
+import Products from "./pages/Products";
+import Sales from "./pages/Sales";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
+import Users from "./pages/Users";
+import CashRegisterClosures from "./pages/CashRegisterClosures";
+import SaleDetail from "./pages/SaleDetail";
 
-import CerrarCaja from "@/pages/CerrarCaja";
-import CierreAdmin from "@/pages/CierreAdmin";
+import CerrarCaja from "./pages/CerrarCaja";
+import CierreAdmin from "./pages/CierreAdmin";
 
 export default function Router() {
   return (
     <Routes>
-      <Route element={<AppShell />}>
-        <Route path="/" element={<Navigate to="/pos" replace />} />
+      <Route path="/" element={<AppShell />}>
+        <Route index element={<Navigate to="/pos" />} />
 
         <Route path="/pos" element={<CajeroPOS />} />
 
@@ -39,15 +38,17 @@ export default function Router() {
 
         <Route path="/users" element={<Users />} />
 
-        <Route path="/closures" element={<CashRegisterClosures />} />
+        <Route
+          path="/cash-register-closures"
+          element={<CashRegisterClosures />}
+        />
 
         <Route path="/cerrar-caja" element={<CerrarCaja />} />
 
         <Route path="/cierre-admin" element={<CierreAdmin />} />
-
-        {/* Cualquier ruta desconocida */}
-        <Route path="*" element={<Navigate to="/pos" replace />} />
       </Route>
+
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }
