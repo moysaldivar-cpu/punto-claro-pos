@@ -1,16 +1,10 @@
-import { Navigate } from "react-router-dom";
-import type { ReactNode } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-
-type Role = "admin" | "gerente" | "cajero";
-
-type Props = {
-  children: ReactNode;
-  allowedRoles?: Role[];
-};
-
 export default function ProtectedRoute({ children, allowedRoles }: Props) {
   const { user, loading, role, loadingRole } = useAuth();
+
+  // 🛑 Si ya terminó de cargar y NO hay usuario → ir a login
+  if (!loading && !loadingRole && !user) {
+    return <Navigate to="/login" replace />;
+  }
 
   // ⏳ Esperar a que auth y role estén listos
   if (loading || loadingRole) {
@@ -19,11 +13,6 @@ export default function ProtectedRoute({ children, allowedRoles }: Props) {
         Cargando…
       </div>
     );
-  }
-
-  // 🚫 No autenticado
-  if (!user) {
-    return <Navigate to="/login" replace />;
   }
 
   // 🔒 Bloqueo por rol
