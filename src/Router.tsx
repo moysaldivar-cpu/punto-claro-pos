@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "../src/AppShell";
 
-import RoleGuard from "../src/components/RoleGuard";
+import ProtectedRoute from "../src/components/ProtectedRoute";
 
 import CajeroPOS from "../src/pages/CajeroPOS";
 import Inventory from "../src/pages/Inventory";
@@ -16,10 +16,24 @@ import SaleDetail from "../src/pages/SaleDetail";
 import CerrarCaja from "../src/pages/CerrarCaja";
 import CierreAdmin from "../src/pages/CierreAdmin";
 
+import Login from "../src/pages/Login";
+
 export default function Router() {
   return (
     <Routes>
-      <Route path="/" element={<AppShell />}>
+
+      {/* 👇 RUTA PÚBLICA */}
+      <Route path="/login" element={<Login />} />
+
+      {/* 👇 TODO LO DEMÁS PROTEGIDO */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <AppShell />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/pos" />} />
 
         <Route path="/pos" element={<CajeroPOS />} />

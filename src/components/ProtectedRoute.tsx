@@ -12,13 +12,10 @@ type Props = {
 export default function ProtectedRoute({ children, allowedRoles }: Props) {
   const { user, loading, role, loadingRole } = useAuth();
 
-  // 🛑 Si ya terminó de cargar y NO hay usuario → ir a login
-  if (!loading && !loadingRole && !user) {
-    console.log("🔁 Redirigiendo a login desde ProtectedRoute");
-    return <Navigate to="/login" replace />;
-  }
+  // 🚨 CAMBIO CLAVE:
+  // Si estamos en /login NO bloquear nunca
+  const isLoginRoute = window.location.pathname === "/login";
 
-  // ⏳ Esperar a que auth y role estén listos
   if (loading || loadingRole) {
     return (
       <div className="p-6 text-center text-gray-500">
@@ -27,9 +24,13 @@ export default function ProtectedRoute({ children, allowedRoles }: Props) {
     );
   }
 
-  // 🔒 Bloqueo por rol
+  // 👇 ESTE ES EL CAMBIO REAL
+  if (!user && !isLoginRoute) {
+    return <Navigate to="/login" replace />;
+  }
+
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
