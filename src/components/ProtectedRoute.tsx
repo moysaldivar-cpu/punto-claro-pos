@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { getPosUser } from "@/lib/posAuth";
 
 type Role = "admin" | "gerente" | "cajero";
 
@@ -10,27 +10,17 @@ type Props = {
 };
 
 export default function ProtectedRoute({ children, allowedRoles }: Props) {
-  const { user, loading, role, loadingRole } = useAuth();
 
-  // 🚨 CAMBIO CLAVE:
-  // Si estamos en /login NO bloquear nunca
-  const isLoginRoute = window.location.pathname === "/login";
+  const user = getPosUser();
 
-  if (loading || loadingRole) {
-    return (
-      <div className="p-6 text-center text-gray-500">
-        Cargando…
-      </div>
-    );
-  }
-
-  // 👇 ESTE ES EL CAMBIO REAL
-  if (!user && !isLoginRoute) {
+  // Si no hay usuario → al login
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
-    return <Navigate to="/" replace />;
+  // Si la ruta pide roles específicos
+  if (allowedRoles && !allowedRoles.includes(user.rol)) {
+    return <Navigate to="/pos" replace />;
   }
 
   return <>{children}</>;

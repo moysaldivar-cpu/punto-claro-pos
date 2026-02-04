@@ -1,82 +1,68 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
-import { useAuth } from "../contexts/AuthContext";
+import { loginPos } from "@/lib/posAuth";
 
 export default function Login() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-
-  const [email, setEmail] = useState("");
+  const [nombre, setNombre] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // Si ya hay sesión, NO cerrar sesión, solo redirigir
-  useEffect(() => {
-    if (user) {
-      navigate("/app", { replace: true });
-    }
-  }, [user, navigate]);
+  const navigate = useNavigate();
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     setLoading(true);
-    setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      await loginPos(nombre, password);
 
-    if (error) {
-      setError("Credenciales incorrectas");
+      // al entrar, vamos directo al POS
+      navigate("/pos");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // Redirigir al contenedor app
-    navigate("/app", { replace: true });
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <form
-        onSubmit={handleLogin}
-        className="border p-6 rounded w-80 space-y-4"
+        onSubmit={handleSubmit}
+        className="bg-white p-6 rounded shadow w-80"
       >
-        <h1 className="text-xl font-semibold text-center">
-          Iniciar sesión
-        </h1>
-
-        {error && (
-          <div className="text-red-600 text-sm text-center">{error}</div>
-        )}
+        <h2 className="text-xl font-bold mb-4 text-center">
+          Punto Claro
+        </h2>
 
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full border p-2"
-          required
+          className="border p-2 w-full mb-3"
+          placeholder="Usuario"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
         />
 
         <input
-          type="password"
+          className="border p-2 w-full mb-3"
           placeholder="Contraseña"
+          type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full border p-2"
-          required
         />
 
+        {error && (
+          <div className="text-red-600 text-sm mb-2">
+            {error}
+          </div>
+        )}
+
         <button
-          type="submit"
           disabled={loading}
-          className="w-full border py-2"
+          className="bg-blue-600 text-white p-2 w-full rounded"
         >
-          {loading ? "Entrando…" : "Entrar"}
+          {loading ? "Entrando..." : "Entrar"}
         </button>
       </form>
     </div>
