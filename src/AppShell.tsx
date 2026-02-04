@@ -43,13 +43,13 @@ export default function AppShell() {
           <div>
             <p className="text-xs text-gray-400 mb-2 uppercase">Operación</p>
 
-            <Item to="/app/pos" label="Punto de venta" />
-            <Item to="/app/cash-register" label="Corte de caja" />
-            <Item to="/app/cerrar-caja" label="Cerrar caja" />
-            <Item to="/app/inventory" label="Inventario" />
+            <Item to="/pos" label="Punto de venta" />
+            <Item to="/cash-register-closures" label="Corte de caja" />
+            <Item to="/cerrar-caja" label="Cerrar caja" />
+            <Item to="/inventory" label="Inventario" />
 
             {(role === "admin" || role === "gerente") && (
-              <Item to="/app/products" label="Productos" />
+              <Item to="/products" label="Productos" />
             )}
           </div>
 
@@ -57,11 +57,10 @@ export default function AppShell() {
             <div>
               <p className="text-xs text-gray-400 mb-2 uppercase">Control</p>
 
-              <Item to="/app/sales" label="Ventas" />
-              <Item to="/app/reports" label="Reportes" />
+              <Item to="/sales" label="Ventas" />
+              <Item to="/reports" label="Reportes" />
 
-              {/* 🆕 */}
-              <Item to="/app/cierres-admin" label="Cierres (Admin)" />
+              <Item to="/cierre-admin" label="Cierres (Admin)" />
             </div>
           )}
 
@@ -71,8 +70,8 @@ export default function AppShell() {
                 Administración
               </p>
 
-              <Item to="/app/users" label="Usuarios" />
-              <Item to="/app/settings" label="Configuración" />
+              <Item to="/users" label="Usuarios" />
+              <Item to="/settings" label="Configuración" />
             </div>
           )}
 
