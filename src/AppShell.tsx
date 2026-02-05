@@ -1,93 +1,119 @@
 import { Outlet, NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
-function Item({ to, label }: { to: string; label: string }) {
-  return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        `block px-3 py-2 rounded ${
-          isActive ? "bg-gray-200 font-medium" : "hover:bg-gray-100"
-        }`
-      }
-    >
-      {label}
-    </NavLink>
-  );
-}
-
 export default function AppShell() {
-  const { user, signOut, role } = useAuth();
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <span className="text-gray-500">Cargando sesión…</span>
-      </div>
-    );
-  }
+  const { user, logout } = useAuth();
+  const rol = user?.rol;
 
   return (
-    <div className="min-h-screen flex bg-gray-100">
-      <aside className="w-64 bg-white border-r flex flex-col">
-        <div className="p-4 border-b">
-          <h1 className="text-lg font-bold text-gray-800">Punto Claro</h1>
-          <p className="text-xs text-gray-500 mt-1">{user.email}</p>
-          <p className="text-xs text-gray-400 capitalize">
-            Rol: {role ?? "(sin rol)"}
-          </p>
+    <div className="flex min-h-screen bg-gray-100">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r">
+        <div className="p-4 font-bold text-lg">
+          Punto Claro
         </div>
 
-        <nav className="flex-1 p-4 text-sm space-y-6">
-
-          <div>
-            <p className="text-xs text-gray-400 mb-2 uppercase">Operación</p>
-
-            <Item to="/pos" label="Punto de venta" />
-            <Item to="/cash-register-closures" label="Corte de caja" />
-            <Item to="/cerrar-caja" label="Cerrar caja" />
-            <Item to="/inventory" label="Inventario" />
-
-            {(role === "admin" || role === "gerente") && (
-              <Item to="/products" label="Productos" />
-            )}
-          </div>
-
-          {role === "admin" && (
-            <div>
-              <p className="text-xs text-gray-400 mb-2 uppercase">Control</p>
-
-              <Item to="/sales" label="Ventas" />
-              <Item to="/reports" label="Reportes" />
-
-              <Item to="/cierre-admin" label="Cierres (Admin)" />
-            </div>
-          )}
-
-          {role === "admin" && (
-            <div>
-              <p className="text-xs text-gray-400 mb-2 uppercase">
-                Administración
-              </p>
-
-              <Item to="/users" label="Usuarios" />
-              <Item to="/settings" label="Configuración" />
-            </div>
-          )}
-
-        </nav>
-
-        <div className="p-4 border-t">
-          <button
-            onClick={signOut}
-            className="w-full text-sm text-red-600 hover:underline"
+        <nav className="px-4 space-y-2">
+          {/* POS – todos */}
+          <NavLink
+            to="/pos"
+            className="block px-3 py-2 rounded hover:bg-gray-100"
           >
-            Cerrar sesión
-          </button>
-        </div>
+            Punto de Venta
+          </NavLink>
+
+          <NavLink
+            to="/cerrar-caja"
+            className="block px-3 py-2 rounded hover:bg-gray-100"
+          >
+            Cerrar Caja
+          </NavLink>
+
+          {/* Inventario – todos (requerimiento del cliente) */}
+          <NavLink
+            to="/inventory"
+            className="block px-3 py-2 rounded hover:bg-gray-100"
+          >
+            Inventario
+          </NavLink>
+
+          {/* Gerente + Admin */}
+          {(rol === "gerente" || rol === "admin") && (
+            <>
+              <NavLink
+                to="/products"
+                className="block px-3 py-2 rounded hover:bg-gray-100"
+              >
+                Productos
+              </NavLink>
+
+              <NavLink
+                to="/sales"
+                className="block px-3 py-2 rounded hover:bg-gray-100"
+              >
+                Ventas
+              </NavLink>
+
+              <NavLink
+                to="/reports"
+                className="block px-3 py-2 rounded hover:bg-gray-100"
+              >
+                Reportes
+              </NavLink>
+            </>
+          )}
+
+          {/* Solo Admin */}
+          {rol === "admin" && (
+            <>
+              <NavLink
+                to="/users"
+                className="block px-3 py-2 rounded hover:bg-gray-100"
+              >
+                Usuarios
+              </NavLink>
+
+              <NavLink
+                to="/configuracion"
+                className="block px-3 py-2 rounded hover:bg-gray-100"
+              >
+                Configuración
+              </NavLink>
+
+              <NavLink
+                to="/cierre-admin"
+                className="block px-3 py-2 rounded hover:bg-gray-100"
+              >
+                Cierre Admin
+              </NavLink>
+            </>
+          )}
+        </nav>
       </aside>
 
+      {/* Main */}
       <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <header className="flex justify-between items-center bg-white border-b px-6 py-3">
+          <div>
+            Bienvenido: <strong>{user?.nombre}</strong>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">
+              Rol: {rol}
+            </span>
+
+            <button
+              onClick={logout}
+              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </header>
+
+        {/* Content */}
         <main className="flex-1 p-6">
           <Outlet />
         </main>

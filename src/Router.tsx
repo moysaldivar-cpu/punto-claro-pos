@@ -1,60 +1,60 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import AppShell from "../src/AppShell";
+import { Routes, Route } from "react-router-dom";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import AppShell from "@/AppShell";
 
-import ProtectedRoute from "../src/components/ProtectedRoute";
+import Login from "@/pages/Login";
+import CajeroPOS from "@/pages/CajeroPOS";
+import Inventory from "@/pages/Inventory";
+import Products from "@/pages/Products";
+import Sales from "@/pages/Sales";
+import Reports from "@/pages/Reports";
+import Users from "@/pages/Users";
+import CashRegisterClosures from "@/pages/CashRegisterClosures";
+import AdminDashboard from "@/pages/AdminDashboard";
 
-import CajeroPOS from "../src/pages/CajeroPOS";
-import Inventory from "../src/pages/Inventory";
-import Products from "../src/pages/Products";
-import Sales from "../src/pages/Sales";
-import Reports from "../src/pages/Reports";
-import Settings from "../src/pages/Settings";
-import Users from "../src/pages/Users";
-import CashRegisterClosures from "../src/pages/CashRegisterClosures";
-import SaleDetail from "../src/pages/SaleDetail";
-
-import CerrarCaja from "../src/pages/CerrarCaja";
-import CierreAdmin from "../src/pages/CierreAdmin";
-
-import Login from "../src/pages/Login";
+/* 🧩 Placeholder Configuración */
+function Configuracion() {
+  return (
+    <div className="max-w-xl mx-auto bg-white p-6 rounded shadow">
+      <h1 className="text-xl font-bold mb-2">Configuración</h1>
+      <p className="text-gray-600">
+        Este módulo estará disponible en próximas versiones del sistema.
+      </p>
+    </div>
+  );
+}
 
 export default function Router() {
   return (
     <Routes>
-
-      {/* 👇 RUTA PÚBLICA */}
+      {/* Pública */}
       <Route path="/login" element={<Login />} />
 
-      {/* 👇 TODO LO DEMÁS PROTEGIDO */}
+      {/* 🔐 RUTAS PROTEGIDAS CON LAYOUT */}
       <Route
-        path="/"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["cajero", "gerente", "admin"]}>
             <AppShell />
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/pos" />} />
-
+        {/* POS */}
         <Route path="/pos" element={<CajeroPOS />} />
+        <Route path="/cerrar-caja" element={<CashRegisterClosures />} />
+
+        {/* Inventario (todos) */}
         <Route path="/inventory" element={<Inventory />} />
+
+        {/* Gerente + Admin */}
         <Route path="/products" element={<Products />} />
         <Route path="/sales" element={<Sales />} />
-        <Route path="/sales/:id" element={<SaleDetail />} />
         <Route path="/reports" element={<Reports />} />
-        <Route path="/settings" element={<Settings />} />
+
+        {/* Solo Admin */}
         <Route path="/users" element={<Users />} />
-
-        <Route
-          path="/cash-register-closures"
-          element={<CashRegisterClosures />}
-        />
-
-        <Route path="/cerrar-caja" element={<CerrarCaja />} />
-        <Route path="/cierre-admin" element={<CierreAdmin />} />
+        <Route path="/configuracion" element={<Configuracion />} />
+        <Route path="/cierre-admin" element={<AdminDashboard />} />
       </Route>
-
-      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }

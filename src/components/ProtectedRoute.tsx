@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
-import { getPosUser } from "@/lib/posAuth";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Role = "admin" | "gerente" | "cajero";
 
@@ -9,19 +9,31 @@ type Props = {
   allowedRoles?: Role[];
 };
 
-export default function ProtectedRoute({ children, allowedRoles }: Props) {
+export default function ProtectedRoute({
+  children,
+  allowedRoles,
+}: Props) {
+  const { user, loading } = useAuth();
 
-  const user = getPosUser();
+  // ⏳ Esperar a que cargue la sesión
+  if (loading) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        Cargando…
+      </div>
+    );
+  }
 
-  // Si no hay usuario → al login
+  // 🚫 No autenticado
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Si la ruta pide roles específicos
+  // 🚫 Rol no permitido
   if (allowedRoles && !allowedRoles.includes(user.rol)) {
     return <Navigate to="/pos" replace />;
   }
 
+  // ✅ Acceso permitido
   return <>{children}</>;
 }

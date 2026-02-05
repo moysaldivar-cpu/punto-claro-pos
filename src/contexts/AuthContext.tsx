@@ -1,84 +1,81 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { supabase } from "../lib/supabase";
+import { createContext, useContext, useState, useEffect } from "react";
 
-type AuthContextType = {
-  user: any;
-  role: string | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
+type PosUser = {
+  id: string;
+  nombre: string;
+  rol: "admin" | "gerente" | "cajero";
+  store_id: string | null;
+
+  // 👇 Compatibilidad con código viejo
+  role?: string;
+  email?: string;
 };
 
-const AuthContext = createContext<AuthContextType>({
+type ContextType = {
+  user: PosUser | null;
+  loading: boolean;
+  logout: () => void;
+
+  // 👇 Para que no truene código viejo
+  signOut?: () => void;
+};
+
+const PosAuthContext = createContext<ContextType>({
   user: null,
-  role: null,
   loading: true,
-  signOut: async () => {},
+  logout: () => {},
+  signOut: () => {},
 });
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any>(null);
-  const [role, setRole] = useState<string | null>(null);
+export function PosAuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<PosUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    const raw = localStorage.getItem("pos_user");
 
-      setUser(session?.user ?? null);
+    if (raw) {
+      const parsed = JSON.parse(raw);
 
-      if (session?.user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .single();
+      // 👇 Doble compatibilidad rol ↔ role
+      setUser({
+        ...parsed,
+        role: parsed.rol,
+      });
+    }
 
-        setRole(data?.role ?? null);
-      }
-
-      setLoading(false);
-    };
-
-    loadSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          const { data } = await supabase
-            .from("profiles")
-            .select("role")
-            .eq("user_id", session.user.id)
-            .single();
-
-          setRole(data?.role ?? null);
-        } else {
-          setRole(null);
-        }
-      }
-    );
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
+    setLoading(false);
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  function logout() {
+    localStorage.removeItem("pos_user");
     setUser(null);
-    setRole(null);
-  };
+    window.location.href = "/login";
+  }
+
+  // 👇 Adaptador para código antiguo
+  function signOut() {
+    logout();
+  }
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, signOut }}>
+    <PosAuthContext.Provider
+      value={{
+        user,
+        loading,
+        logout,
+        signOut,
+      }}
+    >
       {children}
-    </AuthContext.Provider>
+    </PosAuthContext.Provider>
   );
 }
 
-export function useAuth() {
-  return useContext(AuthContext);
+export function usePosAuth() {
+  return useContext(PosAuthContext);
 }
+
+// 🔁 ADAPTADORES PARA QUE TODO LO VIEJO SIGA FUNCIONANDO
+export const AuthProvider = PosAuthProvider;
+export const useAuth = usePosAuth;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import PaymentModal from "@/components/PaymentModal";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePosAuth } from "@/contexts/AuthContext";
 
 type ProductRow = {
   product_id: string;
@@ -18,18 +18,21 @@ type CartItem = {
 };
 
 export default function CajeroPOS() {
-  const { user } = useAuth();
+  const { user } = usePosAuth();
 
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [total, setTotal] = useState(0);
 
-  const storeId = localStorage.getItem("store_id");
+  // 🔥 AQUÍ ESTÁ LA CLAVE: el store viene del usuario autenticado
+  const storeId = user?.store_id;
 
   useEffect(() => {
-    loadProducts();
-  }, []);
+    if (storeId) {
+      loadProducts();
+    }
+  }, [storeId]);
 
   useEffect(() => {
     const t = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -123,20 +126,6 @@ export default function CajeroPOS() {
     }
 
     try {
-      // 1. Verificar caja abierta
-      const { data: openCut } = await supabase
-        .from("cash_register_closures")
-        .select("id")
-        .eq("store_id", storeId)
-        .is("closed_at", null)
-        .single();
-
-      if (!openCut) {
-        alert("No hay caja abierta. Abre caja antes de vender.");
-        return;
-      }
-
-      // 2. Crear venta
       const { data: saleId, error } = await supabase.rpc(
         "create_sale_with_cash_register",
         {
@@ -145,7 +134,7 @@ export default function CajeroPOS() {
           p_tax: 0,
           p_total: total,
           p_payment_method: payload.payment_method,
-          p_user_name: user?.email || "Cajero",
+          p_user_name: user?.nombre || "Cajero",
           p_payment_cash: payload.payment_cash,
           p_payment_card: payload.payment_card,
           p_payment_usd: 0,
@@ -155,7 +144,6 @@ export default function CajeroPOS() {
 
       if (error) throw error;
 
-      // 3. Items
       for (const item of cart) {
         await supabase.from("sales_items").insert({
           sale_id: saleId,
@@ -163,14 +151,21 @@ export default function CajeroPOS() {
           quantity: item.quantity,
           price: item.price,
         });
+
+        await supabase.rpc("force_discount", {
+          p_product_id: item.product_id,
+          p_quantity: item.quantity,
+          p_store_id: storeId,
+        });
       }
 
       alert("Venta registrada correctamente");
 
-      setCart([]);
       setIsPaymentOpen(false);
+      setCart([]);
 
       await loadProducts();
+
     } catch (e: any) {
       alert("Error al guardar venta: " + e.message);
     }
@@ -178,7 +173,9 @@ export default function CajeroPOS() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Punto de Venta</h1>
+      <h1 className="text-xl font-bold mb-4">
+        Punto de Venta – {user?.nombre}
+      </h1>
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 grid grid-cols-2 gap-4">
