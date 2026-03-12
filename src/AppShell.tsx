@@ -5,6 +5,11 @@ export default function AppShell() {
   const { user, logout } = useAuth();
   const rol = user?.rol;
 
+  const linkClass = ({ isActive }: { isActive: boolean }) =>
+    `block px-3 py-2 rounded hover:bg-gray-100 ${
+      isActive ? "bg-gray-200 font-semibold" : ""
+    }`;
+
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar */}
@@ -15,50 +20,41 @@ export default function AppShell() {
 
         <nav className="px-4 space-y-2">
           {/* POS – todos */}
-          <NavLink
-            to="/pos"
-            className="block px-3 py-2 rounded hover:bg-gray-100"
-          >
+          <NavLink to="/pos" className={linkClass}>
             Punto de Venta
           </NavLink>
 
-          <NavLink
-            to="/cerrar-caja"
-            className="block px-3 py-2 rounded hover:bg-gray-100"
-          >
+          {/* Conteo de Turno – todos */}
+          <NavLink to="/conteo-turno" className={linkClass}>
+            Conteo de Turno
+          </NavLink>
+
+          <NavLink to="/cerrar-caja" className={linkClass}>
             Cerrar Caja
           </NavLink>
 
-          {/* Inventario – todos (requerimiento del cliente) */}
-          <NavLink
-            to="/inventory"
-            className="block px-3 py-2 rounded hover:bg-gray-100"
-          >
-            Inventario
-          </NavLink>
+          {/* Inventario – gerente y admin */}
+          {(rol === "gerente" || rol === "admin") && (
+            <>
+              <NavLink to="/inventory" className={linkClass}>
+                Inventario
+              </NavLink>
+
+              <NavLink to="/inventory-loss" className={linkClass}>
+                Registrar Merma
+              </NavLink>
+            </>
+          )}
 
           {/* Gerente + Admin */}
           {(rol === "gerente" || rol === "admin") && (
             <>
-              <NavLink
-                to="/products"
-                className="block px-3 py-2 rounded hover:bg-gray-100"
-              >
+              <NavLink to="/products" className={linkClass}>
                 Productos
               </NavLink>
 
-              <NavLink
-                to="/sales"
-                className="block px-3 py-2 rounded hover:bg-gray-100"
-              >
+              <NavLink to="/sales" className={linkClass}>
                 Ventas
-              </NavLink>
-
-              <NavLink
-                to="/reports"
-                className="block px-3 py-2 rounded hover:bg-gray-100"
-              >
-                Reportes
               </NavLink>
             </>
           )}
@@ -66,24 +62,19 @@ export default function AppShell() {
           {/* Solo Admin */}
           {rol === "admin" && (
             <>
-              <NavLink
-                to="/users"
-                className="block px-3 py-2 rounded hover:bg-gray-100"
-              >
+              <NavLink to="/reports" className={linkClass}>
+                Reportes
+              </NavLink>
+
+              <NavLink to="/users" className={linkClass}>
                 Usuarios
               </NavLink>
 
-              <NavLink
-                to="/configuracion"
-                className="block px-3 py-2 rounded hover:bg-gray-100"
-              >
+              <NavLink to="/configuracion" className={linkClass}>
                 Configuración
               </NavLink>
 
-              <NavLink
-                to="/cierre-admin"
-                className="block px-3 py-2 rounded hover:bg-gray-100"
-              >
+              <NavLink to="/cierre-admin" className={linkClass}>
                 Cierre Admin
               </NavLink>
             </>

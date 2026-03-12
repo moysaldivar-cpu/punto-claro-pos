@@ -9,10 +9,12 @@ import Products from "@/pages/Products";
 import Sales from "@/pages/Sales";
 import Reports from "@/pages/Reports";
 import Users from "@/pages/Users";
-import CashRegisterClosures from "@/pages/CashRegisterClosures";
 import AdminDashboard from "@/pages/AdminDashboard";
+import CloseCashSession from "@/pages/CloseCashSession";
+import ConteoTurno from "@/pages/ConteoTurno";
+import InventoryLoss from "@/pages/InventoryLoss";
 
-/* 🧩 Placeholder Configuración */
+/* Configuración placeholder */
 function Configuracion() {
   return (
     <div className="max-w-xl mx-auto bg-white p-6 rounded shadow">
@@ -27,10 +29,10 @@ function Configuracion() {
 export default function Router() {
   return (
     <Routes>
-      {/* Pública */}
+      {/* Ruta pública */}
       <Route path="/login" element={<Login />} />
 
-      {/* 🔐 RUTAS PROTEGIDAS CON LAYOUT */}
+      {/* Layout protegido */}
       <Route
         element={
           <ProtectedRoute allowedRoles={["cajero", "gerente", "admin"]}>
@@ -40,20 +42,92 @@ export default function Router() {
       >
         {/* POS */}
         <Route path="/pos" element={<CajeroPOS />} />
-        <Route path="/cerrar-caja" element={<CashRegisterClosures />} />
 
-        {/* Inventario (todos) */}
-        <Route path="/inventory" element={<Inventory />} />
+        {/* Conteo de turno */}
+        <Route path="/conteo-turno" element={<ConteoTurno />} />
 
-        {/* Gerente + Admin */}
-        <Route path="/products" element={<Products />} />
-        <Route path="/sales" element={<Sales />} />
-        <Route path="/reports" element={<Reports />} />
+        {/* Cierre de caja */}
+        <Route path="/cerrar-caja" element={<CloseCashSession />} />
 
-        {/* Solo Admin */}
-        <Route path="/users" element={<Users />} />
-        <Route path="/configuracion" element={<Configuracion />} />
-        <Route path="/cierre-admin" element={<AdminDashboard />} />
+        {/* Inventario */}
+        <Route
+          path="/inventory"
+          element={
+            <ProtectedRoute allowedRoles={["gerente", "admin"]}>
+              <Inventory />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Registrar merma */}
+        <Route
+          path="/inventory-loss"
+          element={
+            <ProtectedRoute allowedRoles={["gerente", "admin"]}>
+              <InventoryLoss />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Productos */}
+        <Route
+          path="/products"
+          element={
+            <ProtectedRoute allowedRoles={["gerente", "admin"]}>
+              <Products />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Ventas */}
+        <Route
+          path="/sales"
+          element={
+            <ProtectedRoute allowedRoles={["gerente", "admin"]}>
+              <Sales />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Reportes - SOLO ADMIN */}
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <Reports />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Usuarios */}
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <Users />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Configuración */}
+        <Route
+          path="/configuracion"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <Configuracion />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Cierre administrativo */}
+        <Route
+          path="/cierre-admin"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
       </Route>
     </Routes>
   );
