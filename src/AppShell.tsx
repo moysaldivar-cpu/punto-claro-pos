@@ -11,14 +11,12 @@ export default function AppShell() {
     }`;
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r">
-        <div className="p-4 font-bold text-lg">
-          Punto Claro
-        </div>
+    <div className="h-screen bg-gray-100 overflow-hidden">
+      {/* Sidebar fijo */}
+      <aside className="fixed left-0 top-0 h-screen w-64 bg-white border-r overflow-y-auto">
+        <div className="p-4 font-bold text-lg">Punto Claro</div>
 
-        <nav className="px-4 space-y-2">
+        <nav className="px-4 pb-6 space-y-2">
           {/* POS – todos */}
           <NavLink to="/pos" className={linkClass}>
             Punto de Venta
@@ -29,49 +27,49 @@ export default function AppShell() {
             Conteo de Turno
           </NavLink>
 
+          {/* Cerrar Caja – todos */}
           <NavLink to="/cerrar-caja" className={linkClass}>
             Cerrar Caja
           </NavLink>
 
-          {/* Inventario – gerente y admin */}
-          {(rol === "gerente" || rol === "admin") && (
-            <>
-              <NavLink to="/inventory" className={linkClass}>
-                Inventario
-              </NavLink>
-
-              <NavLink to="/inventory-loss" className={linkClass}>
-                Registrar Merma
-              </NavLink>
-            </>
+          {/* Registrar Merma – cajero, gerente y admin */}
+          {(rol === "cajero" || rol === "gerente" || rol === "admin") && (
+            <NavLink to="/inventory-loss" className={linkClass}>
+              Registrar Merma
+            </NavLink>
           )}
 
-          {/* Gerente + Admin */}
+          {/* Inventario – solo gerente y admin */}
           {(rol === "gerente" || rol === "admin") && (
-            <>
-              <NavLink to="/products" className={linkClass}>
-                Productos
-              </NavLink>
+            <NavLink to="/inventory" className={linkClass}>
+              Inventario
+            </NavLink>
+          )}
 
-              <NavLink to="/sales" className={linkClass}>
-                Ventas
-              </NavLink>
-            </>
+          {/* Productos – gerente y admin */}
+          {(rol === "gerente" || rol === "admin") && (
+            <NavLink to="/products" className={linkClass}>
+              Productos
+            </NavLink>
           )}
 
           {/* Solo Admin */}
           {rol === "admin" && (
             <>
+              <NavLink to="/stores" className={linkClass}>
+                Sucursales
+              </NavLink>
+
+              <NavLink to="/sales" className={linkClass}>
+                Ventas
+              </NavLink>
+
               <NavLink to="/reports" className={linkClass}>
                 Reportes
               </NavLink>
 
               <NavLink to="/users" className={linkClass}>
                 Usuarios
-              </NavLink>
-
-              <NavLink to="/configuracion" className={linkClass}>
-                Configuración
               </NavLink>
 
               <NavLink to="/cierre-admin" className={linkClass}>
@@ -82,18 +80,16 @@ export default function AppShell() {
         </nav>
       </aside>
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="flex justify-between items-center bg-white border-b px-6 py-3">
+      {/* Área principal desplazada por el sidebar */}
+      <div className="ml-64 h-screen flex flex-col">
+        {/* Header fijo */}
+        <header className="h-16 shrink-0 flex justify-between items-center bg-white border-b px-6">
           <div>
             Bienvenido: <strong>{user?.nombre}</strong>
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              Rol: {rol}
-            </span>
+            <span className="text-sm text-gray-600">Rol: {rol}</span>
 
             <button
               onClick={logout}
@@ -104,8 +100,8 @@ export default function AppShell() {
           </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 p-6">
+        {/* Content con scroll propio */}
+        <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
       </div>

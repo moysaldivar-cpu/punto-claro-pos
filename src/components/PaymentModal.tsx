@@ -36,8 +36,6 @@ export default function PaymentModal({
     }
   }, [open]);
 
-  if (!open) return null;
-
   const cashValue = Number(cash) || 0;
   const cardValue = Number(card) || 0;
   const usdValue = Number(usd) || 0;
@@ -51,15 +49,12 @@ export default function PaymentModal({
       ? cardValue
       : cashValue + cardValue + usdInMXN;
 
-  // 🔥 VALIDACIÓN CORRECTA
   const isValid =
     method === "card"
       ? Number(sum.toFixed(2)) === Number(total.toFixed(2))
       : Number(sum.toFixed(2)) >= Number(total.toFixed(2));
 
-  // 🔥 CAMBIO CALCULADO
-  const change =
-    method === "card" ? 0 : Math.max(0, sum - total);
+  const change = method === "card" ? 0 : Math.max(0, sum - total);
 
   const handleConfirm = () => {
     if (!isValid) return;
@@ -72,12 +67,35 @@ export default function PaymentModal({
     });
   };
 
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isF2 = event.key === "F2";
+      const isCtrlEnter = event.ctrlKey && event.key === "Enter";
+
+      if (isF2 || isCtrlEnter) {
+        event.preventDefault();
+
+        if (isValid) {
+          handleConfirm();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, isValid, method, cashValue, cardValue, usdValue]);
+
+  if (!open) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
-        <h3 className="text-lg font-semibold mb-4">
-          Cobro
-        </h3>
+        <h3 className="text-lg font-semibold mb-4">Cobro</h3>
 
         <div className="text-sm text-gray-500 mb-3">
           Tipo de cambio: {exchangeRate}
@@ -128,9 +146,7 @@ export default function PaymentModal({
             </div>
 
             <div className="mb-3">
-              <label className="block text-sm text-gray-600 mb-1">
-                USD
-              </label>
+              <label className="block text-sm text-gray-600 mb-1">USD</label>
               <input
                 type="number"
                 value={usd}
@@ -166,7 +182,6 @@ export default function PaymentModal({
           Total: <span className="font-semibold">${total.toFixed(2)}</span>
         </div>
 
-        {/* 🔥 CAMBIO */}
         {(method === "cash" || method === "mixed") && sum >= total && (
           <div className="mt-2 text-sm text-green-600">
             Cambio: ${change.toFixed(2)}
@@ -180,6 +195,10 @@ export default function PaymentModal({
               : `El pago debe ser al menos ${total.toFixed(2)}`}
           </div>
         )}
+
+        <div className="mt-2 text-xs text-gray-500">
+          Atajos: F2 o Ctrl + Enter para confirmar cobro
+        </div>
 
         <div className="mt-6 flex gap-2">
           <button

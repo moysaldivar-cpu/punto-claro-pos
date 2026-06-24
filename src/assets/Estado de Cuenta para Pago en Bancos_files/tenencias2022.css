@@ -1,0 +1,52 @@
+/* CSS Document */
+
+a.link_menu{ text-decoration:none; font-family:Verdana, Arial, Helvetica, sans-serif;  font-size:10px; color:#ffffff; padding-left:3px;}
+a.link_bancos{ text-decoration:none; font-family:Verdana, Arial, Helvetica, sans-serif;  font-size:11px; color:#000000; height:18; padding-left:3px;}
+a.link_enlaces{ text-decoration:none; font-family:Verdana, Arial, Helvetica, sans-serif;  font-size:11px; color:#000000; height:18; padding-left:3px;}
+a.link_servicios{ text-decoration:none; font-family:Verdana, Arial, Helvetica, sans-serif;  font-size:11px; color: #01623f; height:18; padding-left:3px;}
+A:hover{ text-decoration:underline;}
+.texto_menu{font-family:Verdana, Arial, Helvetica, sans-serif; font-size:10px; color:#ffffff; padding-right:10px;}
+.borde_lr{ border-left:1px #024508 solid; border-right:1px #024508 solid;}
+.borde_lb{ border-left:1px #c6dbd2 dotted; border-bottom:1px #c6dbd2 solid;}
+.box{ border-left:1px #bed3bd solid; border-right:1px #bed3bd solid; border-bottom:1px #bed3bd solid; border-top:1px #bed3bd solid;}
+.box1{ border-left:1px #b3d589 solid; border-right:1px #b3d589 solid; border-bottom:1px #b3d589 solid; border-top:1px #b3d589 solid;}
+.texto_footer{ font-family:Arial, Helvetica, sans-serif; font-size:11px;}
+.texto_fecha{ font-family: Arial, Helvetica, sans-serif; color: #CC0000; font-size:11px; height:18px; padding-right:20px;}
+.textoc{ font-family: Arial, Helvetica, sans-serif; color: #000000; font-size:11px;text-align:center}
+.texto{ font-family: Arial, Helvetica, sans-serif; color: #000000; font-size:11px; padding-right:10px;}
+.textoizq{ font-family: Arial, Helvetica, sans-serif; color: #000000; font-size:11px; padding-right:10px; text-align:left}
+.texto_input{ font-family: Arial, Helvetica, sans-serif; color: #396103; font-size:12px; padding-right:10px;}
+.contenido{ font-family: Verdana, Arial, Helvetica, sans-serif; color: #000000; font-size:11px; padding-right:10px;}
+.menu{ font-family:Verdana, Arial, Helvetica, sans-serif; font-size:11px; color:#2e5485; padding-right:3px; padding-left:3px; height:20; font-weight:bold}
+.ruta{font-family:Verdana, Arial, Helvetica, sans-serif; font-size:10px; color:#000000; padding-right:10px;padding-left:8px;}
+
+.titulo{
+background-color:#AB0A3D;
+font-family:Verdana, Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold;
+color: #FFFFFF;
+height:20px;}
+
+div#qTip{
+ padding: 3px;
+ border: 1px solid #950C05;
+ border-right-width: 1px;
+ border-bottom-width: 1px;
+ display: none;
+ background: #B70E06;
+ color: #FFF;
+ width:250px;
+ font: bold 9px Verdana, Arial, Helvetica, sans-serif;
+ text-align: left;
+ position: absolute;
+ z-index: 1000;
+}
+
+H4{ color:#006633;}
+tr{
+ background: #daefe5;}
+tr.sinfondo{
+ background: #ffffff;}
+
+td{
+font-family: Arial, Helvetica, sans-serif; color: #000000; font-size:11px;
+}

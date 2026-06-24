@@ -12,6 +12,9 @@ type InventoryRow = {
 export default function InventoryLoss() {
   const { user } = useAuth();
 
+  const role = (user as any)?.rol ?? (user as any)?.role ?? "cajero";
+  const showStock = role !== "cajero";
+
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -19,16 +22,16 @@ export default function InventoryLoss() {
   const [reasons, setReasons] = useState<Record<string, string>>({});
 
   async function loadInventory() {
-    if (!user) return;
+    if (!user?.store_id) return;
 
     const { data, error } = await supabase
       .from("inventory")
       .select("id, product_id, stock, products(name)")
-      .eq("store_id", user.store_id)
-      .order("stock", { ascending: false });
+      .eq("store_id", user.store_id);
 
     if (error) {
       console.error(error);
+      alert("Error al cargar productos para merma");
       return;
     }
 
@@ -37,23 +40,30 @@ export default function InventoryLoss() {
       return;
     }
 
-    const mapped: InventoryRow[] = (data as any[]).map((item) => ({
-      id: String(item.id),
-      product_id: String(item.product_id),
-      stock: Number(item.stock || 0),
-      product_name: String(item.products?.name || "Producto"),
-    }));
+    const mapped: InventoryRow[] = (data as any[])
+      .map((item) => ({
+        id: String(item.id),
+        product_id: String(item.product_id),
+        stock: Number(item.stock || 0),
+        product_name: String(item.products?.name || "Producto"),
+      }))
+      .sort((a, b) => a.product_name.localeCompare(b.product_name));
 
     setRows(mapped);
   }
 
   useEffect(() => {
     loadInventory();
-  }, [user]);
+  }, [user?.store_id]);
 
   async function registerLoss(row: InventoryRow) {
+    if (!user?.store_id || !user?.id) {
+      alert("No hay usuario o sucursal activa");
+      return;
+    }
+
     const qty = Number(quantities[row.id]);
-    const reason = reasons[row.id];
+    const reason = reasons[row.id]?.trim();
 
     if (!qty || qty <= 0) {
       alert("Ingresa una cantidad válida");
@@ -61,7 +71,7 @@ export default function InventoryLoss() {
     }
 
     if (qty > row.stock) {
-      alert("La merma no puede ser mayor al stock disponible");
+      alert("La merma no puede ser mayor al inventario disponible");
       return;
     }
 
@@ -70,8 +80,8 @@ export default function InventoryLoss() {
     const { error } = await supabase.from("inventory_movements").insert({
       product_id: row.product_id,
       inventory_id: row.id,
-      store_id: user?.store_id,
-      user_id: user?.id,
+      store_id: user.store_id,
+      user_id: user.id,
       type: "out",
       quantity: -qty,
       reason: reason || "merma",
@@ -101,7 +111,7 @@ export default function InventoryLoss() {
         <thead>
           <tr className="bg-gray-100 text-left">
             <th className="p-2">Producto</th>
-            <th className="p-2">Stock</th>
+            {showStock && <th className="p-2">Stock</th>}
             <th className="p-2">Cantidad</th>
             <th className="p-2">Motivo</th>
             <th className="p-2">Acción</th>
@@ -113,7 +123,7 @@ export default function InventoryLoss() {
             <tr key={row.id} className="border-t">
               <td className="p-2">{row.product_name}</td>
 
-              <td className="p-2">{row.stock}</td>
+              {showStock && <td className="p-2">{row.stock}</td>}
 
               <td className="p-2">
                 <input
@@ -149,13 +159,24 @@ export default function InventoryLoss() {
                 <button
                   disabled={loading}
                   onClick={() => registerLoss(row)}
-                  className="bg-red-600 text-white px-3 py-1 rounded"
+                  className="bg-red-600 text-white px-3 py-1 rounded disabled:opacity-50"
                 >
                   Registrar
                 </button>
               </td>
             </tr>
           ))}
+
+          {rows.length === 0 && (
+            <tr>
+              <td
+                colSpan={showStock ? 5 : 4}
+                className="p-4 text-gray-500"
+              >
+                No hay productos disponibles para esta sucursal.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

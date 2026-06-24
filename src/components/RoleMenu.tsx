@@ -35,7 +35,6 @@ function RoleMenu({ role, onSelect }: Props) {
           <Item label="Usuarios" />
           <Item label="Inventario" />
           <Item label="Ventas" />
-          <Item label="Configuración" />
         </ul>
       )}
 

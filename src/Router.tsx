@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppShell from "@/AppShell";
 
@@ -13,6 +13,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import CloseCashSession from "@/pages/CloseCashSession";
 import ConteoTurno from "@/pages/ConteoTurno";
 import InventoryLoss from "@/pages/InventoryLoss";
+import Stores from "@/pages/Stores";
 
 /* Configuración placeholder */
 function Configuracion() {
@@ -29,6 +30,9 @@ function Configuracion() {
 export default function Router() {
   return (
     <Routes>
+      {/* Redirección raíz */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+
       {/* Ruta pública */}
       <Route path="/login" element={<Login />} />
 
@@ -49,7 +53,7 @@ export default function Router() {
         {/* Cierre de caja */}
         <Route path="/cerrar-caja" element={<CloseCashSession />} />
 
-        {/* Inventario */}
+        {/* Inventario - gerente y admin */}
         <Route
           path="/inventory"
           element={
@@ -59,17 +63,17 @@ export default function Router() {
           }
         />
 
-        {/* Registrar merma */}
+        {/* Registrar merma - cajero, gerente y admin */}
         <Route
           path="/inventory-loss"
           element={
-            <ProtectedRoute allowedRoles={["gerente", "admin"]}>
+            <ProtectedRoute allowedRoles={["cajero", "gerente", "admin"]}>
               <InventoryLoss />
             </ProtectedRoute>
           }
         />
 
-        {/* Productos */}
+        {/* Productos - gerente y admin */}
         <Route
           path="/products"
           element={
@@ -79,17 +83,27 @@ export default function Router() {
           }
         />
 
-        {/* Ventas */}
+        {/* Sucursales - solo admin */}
+        <Route
+          path="/stores"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <Stores />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Ventas - solo admin */}
         <Route
           path="/sales"
           element={
-            <ProtectedRoute allowedRoles={["gerente", "admin"]}>
+            <ProtectedRoute allowedRoles={["admin"]}>
               <Sales />
             </ProtectedRoute>
           }
         />
 
-        {/* Reportes - SOLO ADMIN */}
+        {/* Reportes - solo admin */}
         <Route
           path="/reports"
           element={
@@ -99,7 +113,7 @@ export default function Router() {
           }
         />
 
-        {/* Usuarios */}
+        {/* Usuarios - solo admin */}
         <Route
           path="/users"
           element={
@@ -109,7 +123,7 @@ export default function Router() {
           }
         />
 
-        {/* Configuración */}
+        {/* Configuración - solo admin */}
         <Route
           path="/configuracion"
           element={
@@ -119,7 +133,7 @@ export default function Router() {
           }
         />
 
-        {/* Cierre administrativo */}
+        {/* Cierre administrativo - solo admin */}
         <Route
           path="/cierre-admin"
           element={

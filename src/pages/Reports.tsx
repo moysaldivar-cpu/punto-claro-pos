@@ -63,6 +63,7 @@ type LossMovementRow = {
   quantity: number;
   reason: string | null;
   product_id: string;
+  store_id: string;
 };
 
 type LossRow = {
@@ -71,6 +72,7 @@ type LossRow = {
   quantity: number;
   reason: string | null;
   product_name: string;
+  store_name: string;
   cost: number;
 };
 
@@ -334,10 +336,14 @@ export default function Reports() {
       new Set(filteredLoss.map((r) => String(r.product_id || "")))
     ).filter((id) => id.length > 0);
 
-    const { data: productsData } = await supabase
-      .from("products")
-      .select("id, name, cost")
-      .in("id", productIds);
+    const storeIds = Array.from(
+      new Set(filteredLoss.map((r) => String(r.store_id || "")))
+    ).filter((id) => id.length > 0);
+
+    const [{ data: productsData }, { data: storesData }] = await Promise.all([
+      supabase.from("products").select("id, name, cost").in("id", productIds),
+      supabase.from("pos_stores").select("id, name").in("id", storeIds),
+    ]);
 
     const productMap = new Map<string, ProductInfo>(
       ((productsData || []) as any[]).map((product) => [
@@ -350,8 +356,16 @@ export default function Reports() {
       ])
     );
 
+    const storeMap = new Map<string, string>(
+      ((storesData || []) as any[]).map((store) => [
+        String(store.id),
+        String(store.name || "Sucursal"),
+      ])
+    );
+
     return filteredLoss.map((r) => {
       const product = productMap.get(String(r.product_id || ""));
+      const storeName = storeMap.get(String(r.store_id || "")) || "Sucursal";
 
       return {
         id: String(r.id),
@@ -359,6 +373,7 @@ export default function Reports() {
         reason: r.reason,
         created_at: r.created_at,
         product_name: product?.name || "Producto",
+        store_name: storeName,
         cost: Number(product?.cost || 0),
       };
     });
@@ -577,6 +592,7 @@ export default function Reports() {
         Producto: l.product_name,
         Cantidad: l.quantity,
         Motivo: l.reason,
+        Sucursal: l.store_name,
         Fecha: new Date(l.created_at).toLocaleString(),
       })),
     ];
@@ -893,6 +909,7 @@ function TableLoss({
             <th className="text-center">Producto</th>
             <th className="text-center">Cantidad</th>
             <th className="text-center">Motivo</th>
+            <th className="text-center">Sucursal</th>
             <th className="text-center">Fecha</th>
           </tr>
         </thead>
@@ -903,6 +920,7 @@ function TableLoss({
               <td className="text-center">{r.product_name}</td>
               <td className="text-center">{r.quantity}</td>
               <td className="text-center">{r.reason}</td>
+              <td className="text-center">{r.store_name}</td>
               <td className="text-center">
                 {new Date(r.created_at).toLocaleString()}
               </td>

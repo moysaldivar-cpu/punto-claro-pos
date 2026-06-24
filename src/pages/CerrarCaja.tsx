@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 type OpenSession = {
   id: string;
   store_id: string;
+  opened_by: string;
   opened_at: string;
   opening_amount: number | string | null;
   exchange_rate: number | string | null;
@@ -20,10 +21,15 @@ type SaleRow = {
   created_at: string;
 };
 
+type OtherOpenSession = {
+  id: string;
+  opened_by: string | null;
+};
+
 export default function CerrarCaja() {
   const { user } = useAuth();
 
-  const storeId = localStorage.getItem("store_id");
+  const storeId = user?.store_id || localStorage.getItem("store_id");
 
   const [cash, setCash] = useState("");
   const [card, setCard] = useState("");
@@ -34,13 +40,41 @@ export default function CerrarCaja() {
 
   const [session, setSession] = useState<OpenSession | null>(null);
   const [sales, setSales] = useState<SaleRow[]>([]);
+  const [sessionConflictMessage, setSessionConflictMessage] = useState("");
 
   useEffect(() => {
     loadData();
-  }, [storeId]);
+  }, [storeId, user?.id]);
+
+  async function findOtherOpenSessionInStore(): Promise<OtherOpenSession | null> {
+    if (!storeId || !user?.id) return null;
+
+    const { data, error } = await supabase
+      .from("cash_sessions")
+      .select("id, opened_by")
+      .eq("store_id", storeId)
+      .eq("status", "open")
+      .neq("opened_by", user.id)
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return data as OtherOpenSession;
+  }
 
   async function loadData() {
+    setSessionConflictMessage("");
+
     if (!storeId) {
+      setLoading(false);
+      return;
+    }
+
+    if (!user?.id) {
       setLoading(false);
       return;
     }
@@ -49,9 +83,14 @@ export default function CerrarCaja() {
 
     const { data: openSession, error: sessionError } = await supabase
       .from("cash_sessions")
-      .select("id, store_id, opened_at, opening_amount, exchange_rate, status")
+      .select(
+        "id, store_id, opened_by, opened_at, opening_amount, exchange_rate, status"
+      )
       .eq("store_id", storeId)
+      .eq("opened_by", user.id)
       .eq("status", "open")
+      .order("opened_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (sessionError) {
@@ -61,13 +100,22 @@ export default function CerrarCaja() {
     }
 
     if (!openSession) {
+      const otherSession = await findOtherOpenSessionInStore();
+
       setSession(null);
       setSales([]);
+
+      if (otherSession) {
+        setSessionConflictMessage(
+          "Esta sucursal tiene una caja abierta por otro usuario. Para cerrar caja aquí, debe ingresar el usuario que abrió ese turno o primero cerrar ese turno correctamente."
+        );
+      }
+
       setLoading(false);
       return;
     }
 
-    setSession(openSession);
+    setSession(openSession as OpenSession);
 
     const { data: salesRows, error: salesError } = await supabase
       .from("sales")
@@ -155,8 +203,18 @@ export default function CerrarCaja() {
       return;
     }
 
+    if (!user?.id) {
+      alert("No hay usuario definido");
+      return;
+    }
+
     if (!session) {
-      alert("No hay sesión abierta para esta sucursal");
+      alert("No hay sesión abierta para este usuario en esta sucursal");
+      return;
+    }
+
+    if (session.opened_by !== user.id) {
+      alert("No puedes cerrar una caja abierta por otro usuario.");
       return;
     }
 
@@ -166,16 +224,38 @@ export default function CerrarCaja() {
 
     if (!confirmed) return;
 
-    const { data, error } = await supabase.rpc(
-      "close_cash_register_client",
-      {
-        p_store_id: storeId,
-        p_user_name: user?.email || "Cajero",
-        p_cash_declared: Number(cash || 0),
-        p_card_declared: Number(card || 0),
-        p_usd_declared: Number(usd || 0),
-      }
-    );
+    const { data: currentSession, error: currentSessionError } = await supabase
+      .from("cash_sessions")
+      .select("id, opened_by, store_id, status")
+      .eq("id", session.id)
+      .eq("store_id", storeId)
+      .eq("opened_by", user.id)
+      .eq("status", "open")
+      .maybeSingle();
+
+    if (currentSessionError) {
+      alert(
+        "Error al validar la caja antes de cerrar: " +
+          currentSessionError.message
+      );
+      return;
+    }
+
+    if (!currentSession) {
+      alert(
+        "La caja ya no está abierta para este usuario. Actualiza la pantalla y vuelve a intentar."
+      );
+      await loadData();
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("close_cash_register_client", {
+      p_store_id: storeId,
+      p_user_name: user?.nombre || user?.email || "Cajero",
+      p_cash_declared: Number(cash || 0),
+      p_card_declared: Number(card || 0),
+      p_usd_declared: Number(usd || 0),
+    });
 
     if (error) {
       alert("Error al cerrar caja: " + error.message);
@@ -211,12 +291,26 @@ export default function CerrarCaja() {
     );
   }
 
-  if (!session) {
+  if (!user?.id) {
     return (
       <div className="p-6">
-        <h2 className="text-lg font-bold">
-          No hay caja abierta para esta sucursal
+        <h2 className="text-lg font-bold">No hay usuario definido</h2>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="p-6 max-w-3xl">
+        <h2 className="text-lg font-bold mb-4">
+          No hay caja abierta para este usuario
         </h2>
+
+        {sessionConflictMessage && (
+          <div className="border border-red-300 bg-red-50 text-red-700 rounded p-4 font-semibold">
+            {sessionConflictMessage}
+          </div>
+        )}
       </div>
     );
   }
@@ -390,7 +484,7 @@ export default function CerrarCaja() {
           <p className={diffClass(declarados.usdDifference)}>
             Diferencia USD: {money(declarados.usdDifference)}
           </p>
-          <p className="font-bold pt-2">
+          <p className="font-bold pt-2 text-gray-700">
             Total declarado (MXN): {money(declarados.totalDeclaredMxn)}
           </p>
         </div>

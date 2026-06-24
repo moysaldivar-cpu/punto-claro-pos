@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePosAuth } from "@/contexts/AuthContext";
 
 type Sale = {
   id: string;
@@ -16,21 +16,33 @@ type Sale = {
 };
 
 export default function SalesHistory() {
-  const { role, loadingRole } = useAuth();
+  const { user, loading } = usePosAuth();
+
+  const role = ((user as any)?.rol ?? (user as any)?.role ?? null) as
+    | "admin"
+    | "gerente"
+    | "cajero"
+    | null;
+
   const isAdmin = role === "admin";
 
-  const [loading, setLoading] = useState(true);
+  const [salesLoading, setSalesLoading] = useState(true);
   const [sales, setSales] = useState<Sale[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (loading) return;
+
     if (isAdmin) {
       loadSales();
+      return;
     }
-  }, [isAdmin]);
+
+    setSalesLoading(false);
+  }, [loading, isAdmin]);
 
   async function loadSales() {
-    setLoading(true);
+    setSalesLoading(true);
     setError(null);
 
     const { data, error } = await supabase
@@ -51,19 +63,19 @@ export default function SalesHistory() {
 
     if (error || !data) {
       setError("No se pudo cargar el historial de ventas");
-      setLoading(false);
+      setSalesLoading(false);
       return;
     }
 
-    setSales(data);
-    setLoading(false);
+    setSales(data as Sale[]);
+    setSalesLoading(false);
   }
 
-  if (loadingRole || loading) {
+  if (loading || salesLoading) {
     return <div className="p-6">Cargando ventas…</div>;
   }
 
-  if (!isAdmin) {
+  if (!user || !isAdmin) {
     return (
       <div className="p-6 text-red-600">
         No tienes permiso para ver el historial de ventas.
@@ -91,22 +103,27 @@ export default function SalesHistory() {
             <th className="p-2 text-center">Acciones</th>
           </tr>
         </thead>
+
         <tbody>
           {sales.map((sale) => (
             <tr key={sale.id} className="border-b">
               <td className="p-2">
                 {new Date(sale.created_at).toLocaleString()}
               </td>
+
               <td className="p-2">{sale.user_name}</td>
+
               <td className="p-2 text-center">
                 {sale.payment_method}
               </td>
+
               <td className="p-2 text-center font-semibold">
-                ${sale.total}
+                ${Number(sale.total || 0).toFixed(2)}
               </td>
+
               <td className="p-2 text-center">
                 <Link
-                  to={`/app/sales/${sale.id}`}
+                  to={`/sales/${sale.id}`}
                   className="text-blue-600 underline"
                 >
                   Ver detalle
@@ -114,6 +131,17 @@ export default function SalesHistory() {
               </td>
             </tr>
           ))}
+
+          {sales.length === 0 && (
+            <tr>
+              <td
+                colSpan={5}
+                className="p-4 text-center text-gray-500"
+              >
+                No hay ventas registradas.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 

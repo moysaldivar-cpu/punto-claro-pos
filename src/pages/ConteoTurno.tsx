@@ -7,14 +7,31 @@ type Product = {
   name: string;
 };
 
+type InventoryRow = {
+  product_id: string;
+  stock: number;
+};
+
 type InventoryCount = {
   product_id: string;
   fridge_qty: number;
   warehouse_qty: number;
 };
 
+function chunkArray<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+
+  return chunks;
+}
+
 export default function ConteoTurno() {
   const { user } = usePosAuth();
+
+  const storeId = user?.store_id || localStorage.getItem("store_id");
 
   const [products, setProducts] = useState<Product[]>([]);
   const [counts, setCounts] = useState<
@@ -23,52 +40,130 @@ export default function ConteoTurno() {
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function loadData() {
-      if (!user?.store_id) return;
-
       setLoading(true);
+      setError("");
+      setProducts([]);
+      setCounts({});
+      setCashSessionId(null);
 
-      // 1️⃣ Obtener sesión abierta
-      const { data: sessionData } = await supabase
+      if (!storeId) {
+        setError("No hay sucursal activa para esta sesión.");
+        setLoading(false);
+        return;
+      }
+
+      if (!user?.id) {
+        setError("No hay usuario activo para esta sesión.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: sessionData, error: sessionError } = await supabase
         .from("cash_sessions")
         .select("id")
-        .eq("store_id", user.store_id)
+        .eq("store_id", storeId)
+        .eq("opened_by", user.id)
         .eq("status", "open")
+        .order("opened_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
+      if (sessionError) {
+        setError("Error al cargar sesión abierta: " + sessionError.message);
+        setLoading(false);
+        return;
+      }
+
       if (!sessionData) {
+        const { data: otherSession } = await supabase
+          .from("cash_sessions")
+          .select("id, opened_by")
+          .eq("store_id", storeId)
+          .eq("status", "open")
+          .neq("opened_by", user.id)
+          .order("opened_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (otherSession) {
+          setError(
+            "Esta sucursal tiene un turno abierto por otro usuario. Para capturar conteo aquí, debe ingresar el usuario que abrió ese turno."
+          );
+        } else {
+          setError("No hay sesión abierta para este usuario en esta sucursal.");
+        }
+
         setLoading(false);
         return;
       }
 
       setCashSessionId(sessionData.id);
 
-      // 2️⃣ Productos
-      const { data: productsData } = await supabase
-        .from("products")
-        .select("id, name")
-        .eq("store_id", user.store_id)
-        .order("name", { ascending: true });
+      const { data: inventoryData, error: inventoryError } = await supabase
+        .from("inventory")
+        .select("product_id, stock")
+        .eq("store_id", storeId);
 
-      setProducts(productsData || []);
+      if (inventoryError) {
+        setError("Error al cargar inventario: " + inventoryError.message);
+        setLoading(false);
+        return;
+      }
 
-      // 3️⃣ Conteos existentes
-      const { data: countsData } = await supabase
+      const typedInventory = (inventoryData || []) as InventoryRow[];
+      const productIds = typedInventory.map((row) => row.product_id);
+
+      if (productIds.length === 0) {
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
+
+      const productChunks = chunkArray(productIds, 80);
+      const allProducts: Product[] = [];
+
+      for (const chunk of productChunks) {
+        const { data: productsData, error: productsError } = await supabase
+          .from("products")
+          .select("id, name")
+          .in("id", chunk);
+
+        if (productsError) {
+          setError("Error al cargar productos: " + productsError.message);
+          setLoading(false);
+          return;
+        }
+
+        allProducts.push(...((productsData || []) as Product[]));
+      }
+
+      const sortedProducts = allProducts.sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+
+      setProducts(sortedProducts);
+
+      const { data: countsData, error: countsError } = await supabase
         .from("inventory_counts")
         .select("product_id, fridge_qty, warehouse_qty")
         .eq("cash_session_id", sessionData.id);
 
-      const countsMap: Record<
-        string,
-        { fridge: number; warehouse: number }
-      > = {};
+      if (countsError) {
+        setError("Error al cargar conteos existentes: " + countsError.message);
+        setLoading(false);
+        return;
+      }
+
+      const countsMap: Record<string, { fridge: number; warehouse: number }> = {};
 
       countsData?.forEach((c: InventoryCount) => {
         countsMap[c.product_id] = {
-          fridge: c.fridge_qty,
-          warehouse: c.warehouse_qty,
+          fridge: Number(c.fridge_qty || 0),
+          warehouse: Number(c.warehouse_qty || 0),
         };
       });
 
@@ -77,10 +172,10 @@ export default function ConteoTurno() {
     }
 
     loadData();
-  }, [user]);
+  }, [storeId, user?.id]);
 
   async function saveCount(productId: string) {
-    if (!cashSessionId || !user?.store_id) return;
+    if (!cashSessionId || !storeId || !user?.id) return;
 
     const productCount = counts[productId] || {
       fridge: 0,
@@ -89,9 +184,32 @@ export default function ConteoTurno() {
 
     setSavingProductId(productId);
 
+    const { data: currentSession, error: sessionError } = await supabase
+      .from("cash_sessions")
+      .select("id")
+      .eq("id", cashSessionId)
+      .eq("store_id", storeId)
+      .eq("opened_by", user.id)
+      .eq("status", "open")
+      .maybeSingle();
+
+    if (sessionError) {
+      setSavingProductId(null);
+      alert("Error al validar turno: " + sessionError.message);
+      return;
+    }
+
+    if (!currentSession) {
+      setSavingProductId(null);
+      alert(
+        "El turno ya no está abierto para este usuario en esta sucursal. Actualiza la pantalla y vuelve a intentar."
+      );
+      return;
+    }
+
     const { error } = await supabase.from("inventory_counts").upsert(
       {
-        store_id: user.store_id,
+        store_id: storeId,
         cash_session_id: cashSessionId,
         product_id: productId,
         fridge_qty: productCount.fridge,
@@ -113,6 +231,10 @@ export default function ConteoTurno() {
 
   if (loading) {
     return <div className="p-6">Cargando conteo de turno…</div>;
+  }
+
+  if (error) {
+    return <div className="p-6 text-red-600 font-semibold">{error}</div>;
   }
 
   if (!cashSessionId) {
@@ -153,8 +275,8 @@ export default function ConteoTurno() {
                       setCounts({
                         ...counts,
                         [product.id]: {
-                          ...counts[product.id],
                           fridge: Number(e.target.value),
+                          warehouse: counts[product.id]?.warehouse ?? 0,
                         },
                       })
                     }
@@ -171,7 +293,7 @@ export default function ConteoTurno() {
                       setCounts({
                         ...counts,
                         [product.id]: {
-                          ...counts[product.id],
+                          fridge: counts[product.id]?.fridge ?? 0,
                           warehouse: Number(e.target.value),
                         },
                       })
@@ -193,6 +315,14 @@ export default function ConteoTurno() {
                 </td>
               </tr>
             ))}
+
+            {products.length === 0 && (
+              <tr>
+                <td colSpan={4} className="p-4 text-gray-500">
+                  No hay productos disponibles para esta sucursal.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
