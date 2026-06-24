@@ -52,11 +52,9 @@ export default function Inventory() {
     null
   );
 
-  // I3 – ajuste absoluto
   const [selectedAdjust, setSelectedAdjust] =
     useState<InventoryRow | null>(null);
 
-  // I5 – entrada / salida
   const [selectedMove, setSelectedMove] = useState<InventoryRow | null>(null);
   const [moveMode, setMoveMode] = useState<MoveMode>("in");
 
@@ -200,74 +198,15 @@ export default function Inventory() {
   const visibleRows = useMemo(() => {
     if (!isAdmin) {
       const storeId = user?.store_id || localStoreId;
-      const storeName = stores[0]?.name ?? "(Sin sucursal)";
-
-      const existingByProductId = new Map(
-        rows
-          .filter((row) => row.store_id === storeId)
-          .map((row) => [row.product_id, row])
-      );
-
-      return products.map((product) => {
-        const existing = existingByProductId.get(product.id);
-
-        if (existing) {
-          return existing;
-        }
-
-        return {
-          id: "",
-          product_id: product.id,
-          store_id: storeId,
-          stock: 0,
-          min_stock: 0,
-          product_name: product.name,
-          product_active: product.active,
-          store_name: storeName,
-          exists_in_inventory: false,
-        };
-      });
+      return rows.filter((row) => row.store_id === storeId);
     }
 
     if (selectedStoreId === "all") {
       return rows;
     }
 
-    const existingByProductId = new Map(
-      rows
-        .filter((row) => row.store_id === selectedStoreId)
-        .map((row) => [row.product_id, row])
-    );
-
-    return products.map((product) => {
-      const existing = existingByProductId.get(product.id);
-
-      if (existing) {
-        return existing;
-      }
-
-      return {
-        id: "",
-        product_id: product.id,
-        store_id: selectedStoreId,
-        stock: 0,
-        min_stock: 0,
-        product_name: product.name,
-        product_active: product.active,
-        store_name: selectedStore?.name ?? "(Sin sucursal)",
-        exists_in_inventory: false,
-      };
-    });
-  }, [
-    rows,
-    products,
-    stores,
-    isAdmin,
-    selectedStoreId,
-    selectedStore?.name,
-    user?.store_id,
-    localStoreId,
-  ]);
+    return rows.filter((row) => row.store_id === selectedStoreId);
+  }, [rows, isAdmin, selectedStoreId, user?.store_id, localStoreId]);
 
   async function ensureInventoryRow(row: InventoryRow): Promise<InventoryRow> {
     if (row.id) {
@@ -424,9 +363,6 @@ export default function Inventory() {
 
     let created = 0;
     let updated = 0;
-    const notFound: string[] = [...invalidLines.map((line) => "")].filter(
-      Boolean
-    );
     const realNotFound: string[] = [];
 
     try {
@@ -559,8 +495,8 @@ export default function Inventory() {
         <h1 className="text-2xl font-bold mb-2">Inventario</h1>
         <p className="text-gray-600">
           Administra el stock por sucursal. Al seleccionar una sucursal
-          específica, aparecerán todos los productos, incluso los que todavía no
-          tienen inventario asignado.
+          específica, se muestran únicamente los productos con inventario
+          asignado en esa sucursal.
         </p>
       </div>
 
@@ -585,8 +521,7 @@ export default function Inventory() {
 
           {selectedStoreId === "all" && (
             <p className="text-sm text-gray-500 mt-2">
-              Para asignar inventario inicial a productos nuevos, selecciona una
-              sucursal específica.
+              Selecciona una sucursal específica para cargar inventario por SKU.
             </p>
           )}
         </div>
@@ -727,12 +662,7 @@ TEST-ADMIN-001, 13`}
 
             <tbody>
               {visibleRows.map((r) => (
-                <tr
-                  key={`${r.store_id}-${r.product_id}`}
-                  className={`border-t ${
-                    r.exists_in_inventory ? "" : "bg-yellow-50"
-                  }`}
-                >
+                <tr key={`${r.store_id}-${r.product_id}`} className="border-t">
                   {isAdmin && selectedStoreId === "all" && (
                     <td className="border p-2">{r.store_name}</td>
                   )}
@@ -751,15 +681,9 @@ TEST-ADMIN-001, 13`}
                   <td className="border p-2">{r.min_stock}</td>
 
                   <td className="border p-2">
-                    {r.exists_in_inventory ? (
-                      <span className="inline-block px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-semibold">
-                        Con inventario
-                      </span>
-                    ) : (
-                      <span className="inline-block px-2 py-1 rounded bg-yellow-100 text-yellow-700 text-xs font-semibold">
-                        Sin asignar
-                      </span>
-                    )}
+                    <span className="inline-block px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-semibold">
+                      Con inventario
+                    </span>
                   </td>
 
                   <td className="border p-2">
@@ -795,7 +719,7 @@ TEST-ADMIN-001, 13`}
                     colSpan={isAdmin && selectedStoreId === "all" ? 6 : 5}
                     className="p-4 text-center text-gray-500"
                   >
-                    No hay inventario para mostrar.
+                    No hay inventario asignado para mostrar.
                   </td>
                 </tr>
               )}
@@ -804,9 +728,8 @@ TEST-ADMIN-001, 13`}
         </div>
 
         <p className="text-xs text-gray-500 mt-3">
-          Nota: si un producto aparece como “Sin asignar”, al registrar una
-          entrada o ajustar inventario se creará automáticamente su registro de
-          inventario para esa sucursal.
+          Para asignar inventario inicial a productos nuevos, usa la carga
+          masiva con formato SKU, STOCK en una sucursal específica.
         </p>
       </div>
 
