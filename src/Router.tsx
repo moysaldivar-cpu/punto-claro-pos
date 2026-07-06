@@ -6,7 +6,10 @@ import Login from "@/pages/Login";
 import CajeroPOS from "@/pages/CajeroPOS";
 import Inventory from "@/pages/Inventory";
 import Products from "@/pages/Products";
+import Promotions from "@/pages/Promotions";
 import Sales from "@/pages/Sales";
+import SaleDetail from "@/pages/SaleDetail";
+import SalesHistory from "@/pages/SalesHistory";
 import Reports from "@/pages/Reports";
 import Users from "@/pages/Users";
 import AdminDashboard from "@/pages/AdminDashboard";
@@ -83,6 +86,16 @@ export default function Router() {
           }
         />
 
+        {/* Promociones - solo admin */}
+        <Route
+          path="/promotions"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <Promotions />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Sucursales - solo admin */}
         <Route
           path="/stores"
@@ -99,6 +112,26 @@ export default function Router() {
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <Sales />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Detalle de venta - solo admin */}
+        <Route
+          path="/sales/:id"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <SaleDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Historial de ventas / Reimpresión de ticket - solo admin */}
+        <Route
+          path="/sales-history"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <SalesHistory />
             </ProtectedRoute>
           }
         />

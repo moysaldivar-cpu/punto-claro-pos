@@ -293,6 +293,98 @@ export default function Reports() {
     );
   }
 
+  async function fetchStoreReportRows({
+    fromValue,
+    toValue,
+    storeIdValue,
+    cashierValue,
+  }: {
+    fromValue: string;
+    toValue: string;
+    storeIdValue: string;
+    cashierValue: string;
+  }): Promise<StoreReportRow[]> {
+    const sales = await fetchFilteredSales({
+      fromValue,
+      toValue,
+      storeIdValue,
+      cashierValue,
+    });
+
+    const storeNameMap = new Map<string, string>(
+      stores.map((store) => [store.id, store.name])
+    );
+
+    const grouped = new Map<string, StoreReportRow>();
+
+    sales.forEach((sale) => {
+      const current = grouped.get(sale.store_id) || {
+        store_name: storeNameMap.get(sale.store_id) || "Sucursal",
+        total_sales: 0,
+        total_cash: 0,
+        total_card: 0,
+        total_usd: 0,
+      };
+
+      current.total_sales += Number(sale.total || 0);
+      current.total_cash += Number(sale.payment_cash || 0);
+      current.total_card += Number(sale.payment_card || 0);
+      current.total_usd += Number(sale.payment_usd || 0);
+
+      grouped.set(sale.store_id, current);
+    });
+
+    return Array.from(grouped.values()).sort(
+      (a, b) => b.total_sales - a.total_sales
+    );
+  }
+
+  async function fetchCashierReportRows({
+    fromValue,
+    toValue,
+    storeIdValue,
+    cashierValue,
+  }: {
+    fromValue: string;
+    toValue: string;
+    storeIdValue: string;
+    cashierValue: string;
+  }): Promise<CashierReportRow[]> {
+    const sales = await fetchFilteredSales({
+      fromValue,
+      toValue,
+      storeIdValue,
+      cashierValue,
+    });
+
+    const grouped = new Map<string, CashierReportRow>();
+
+    sales.forEach((sale) => {
+      const cashier = String(sale.user_name || "Sin nombre");
+
+      const current = grouped.get(cashier) || {
+        cashier,
+        total_sales: 0,
+        total_cash: 0,
+        total_card: 0,
+        total_usd: 0,
+        transactions: 0,
+      };
+
+      current.total_sales += Number(sale.total || 0);
+      current.total_cash += Number(sale.payment_cash || 0);
+      current.total_card += Number(sale.payment_card || 0);
+      current.total_usd += Number(sale.payment_usd || 0);
+      current.transactions += 1;
+
+      grouped.set(cashier, current);
+    });
+
+    return Array.from(grouped.values()).sort(
+      (a, b) => b.total_sales - a.total_sales
+    );
+  }
+
   async function fetchLossRows({
     fromValue,
     toValue,
@@ -432,39 +524,12 @@ export default function Reports() {
 
     setLoadingStores(true);
 
-    const sales = await fetchFilteredSales({
+    const rows = await fetchStoreReportRows({
       fromValue: from,
       toValue: to,
       storeIdValue: storeFilter,
       cashierValue: cashierFilter,
     });
-
-    const storeNameMap = new Map<string, string>(
-      stores.map((store) => [store.id, store.name])
-    );
-
-    const grouped = new Map<string, StoreReportRow>();
-
-    sales.forEach((sale) => {
-      const current = grouped.get(sale.store_id) || {
-        store_name: storeNameMap.get(sale.store_id) || "Sucursal",
-        total_sales: 0,
-        total_cash: 0,
-        total_card: 0,
-        total_usd: 0,
-      };
-
-      current.total_sales += Number(sale.total || 0);
-      current.total_cash += Number(sale.payment_cash || 0);
-      current.total_card += Number(sale.payment_card || 0);
-      current.total_usd += Number(sale.payment_usd || 0);
-
-      grouped.set(sale.store_id, current);
-    });
-
-    const rows = Array.from(grouped.values()).sort(
-      (a, b) => b.total_sales - a.total_sales
-    );
 
     setStoreRows(rows);
     setShowStores(true);
@@ -481,39 +546,12 @@ export default function Reports() {
 
     setLoadingCashiers(true);
 
-    const sales = await fetchFilteredSales({
+    const rows = await fetchCashierReportRows({
       fromValue: from,
       toValue: to,
       storeIdValue: storeFilter,
       cashierValue: cashierFilter,
     });
-
-    const grouped = new Map<string, CashierReportRow>();
-
-    sales.forEach((sale) => {
-      const cashier = String(sale.user_name || "Sin nombre");
-
-      const current = grouped.get(cashier) || {
-        cashier,
-        total_sales: 0,
-        total_cash: 0,
-        total_card: 0,
-        total_usd: 0,
-        transactions: 0,
-      };
-
-      current.total_sales += Number(sale.total || 0);
-      current.total_cash += Number(sale.payment_cash || 0);
-      current.total_card += Number(sale.payment_card || 0);
-      current.total_usd += Number(sale.payment_usd || 0);
-      current.transactions += 1;
-
-      grouped.set(cashier, current);
-    });
-
-    const rows = Array.from(grouped.values()).sort(
-      (a, b) => b.total_sales - a.total_sales
-    );
 
     setCashierRows(rows);
     setShowCashiers(true);
@@ -577,18 +615,63 @@ export default function Reports() {
     return `Modo actual: Sucursal — ${selectedStoreName} / Cajero — ${cashierFilter}`;
   }, [storeFilter, cashierFilter, selectedStoreName]);
 
-  function handleExport() {
+  async function handleExport() {
+    if (!from || !to) return;
+
+    const [products, storesReport, cashiersReport, losses] = await Promise.all([
+      fetchProductRows({
+        fromValue: from,
+        toValue: to,
+        storeIdValue: storeFilter,
+        cashierValue: cashierFilter,
+      }),
+      fetchStoreReportRows({
+        fromValue: from,
+        toValue: to,
+        storeIdValue: storeFilter,
+        cashierValue: cashierFilter,
+      }),
+      fetchCashierReportRows({
+        fromValue: from,
+        toValue: to,
+        storeIdValue: storeFilter,
+        cashierValue: cashierFilter,
+      }),
+      fetchLossRows({
+        fromValue: from,
+        toValue: to,
+        storeIdValue: storeFilter,
+      }),
+    ]);
+
     const rows = [
-      ...productRows.map((p) => ({
-        Tipo: "Venta",
+      ...products.map((p) => ({
+        Seccion: "Ventas por Producto",
         Producto: p.product_name,
         Cantidad: p.quantity_sold,
         Total: p.total_sales,
         Costo: p.total_cost,
         Utilidad: p.profit,
       })),
-      ...lossRows.map((l) => ({
-        Tipo: "Merma",
+      ...storesReport.map((s) => ({
+        Seccion: "Ventas por Sucursal",
+        Sucursal: s.store_name,
+        Ventas: s.total_sales,
+        Efectivo_MXN: s.total_cash,
+        Tarjeta_MXN: s.total_card,
+        USD: s.total_usd,
+      })),
+      ...cashiersReport.map((c) => ({
+        Seccion: "Ventas por Cajero",
+        Cajero: c.cashier,
+        Ventas: c.total_sales,
+        Efectivo_MXN: c.total_cash,
+        Tarjeta_MXN: c.total_card,
+        USD: c.total_usd,
+        Transacciones: c.transactions,
+      })),
+      ...losses.map((l) => ({
+        Seccion: "Merma",
         Producto: l.product_name,
         Cantidad: l.quantity,
         Motivo: l.reason,
@@ -597,7 +680,95 @@ export default function Reports() {
       })),
     ];
 
-    downloadExcel("reporte.xlsx", rows);
+    downloadExcel("reporte_general.xlsx", rows);
+  }
+
+  async function handleExportProducts() {
+    if (!from || !to) return;
+
+    const rows = await fetchProductRows({
+      fromValue: from,
+      toValue: to,
+      storeIdValue: storeFilter,
+      cashierValue: cashierFilter,
+    });
+
+    downloadExcel(
+      "ventas_por_producto.xlsx",
+      rows.map((p) => ({
+        Producto: p.product_name,
+        Cantidad: p.quantity_sold,
+        Ventas: p.total_sales,
+        Costo: p.total_cost,
+        Utilidad: p.profit,
+      }))
+    );
+  }
+
+  async function handleExportStores() {
+    if (!from || !to) return;
+
+    const rows = await fetchStoreReportRows({
+      fromValue: from,
+      toValue: to,
+      storeIdValue: storeFilter,
+      cashierValue: cashierFilter,
+    });
+
+    downloadExcel(
+      "ventas_por_sucursal.xlsx",
+      rows.map((s) => ({
+        Sucursal: s.store_name,
+        Ventas: s.total_sales,
+        Efectivo_MXN: s.total_cash,
+        Tarjeta_MXN: s.total_card,
+        USD: s.total_usd,
+      }))
+    );
+  }
+
+  async function handleExportCashiers() {
+    if (!from || !to) return;
+
+    const rows = await fetchCashierReportRows({
+      fromValue: from,
+      toValue: to,
+      storeIdValue: storeFilter,
+      cashierValue: cashierFilter,
+    });
+
+    downloadExcel(
+      "ventas_por_cajero.xlsx",
+      rows.map((c) => ({
+        Cajero: c.cashier,
+        Ventas: c.total_sales,
+        Efectivo_MXN: c.total_cash,
+        Tarjeta_MXN: c.total_card,
+        USD: c.total_usd,
+        Transacciones: c.transactions,
+      }))
+    );
+  }
+
+  async function handleExportLoss() {
+    if (!from || !to) return;
+
+    const rows = await fetchLossRows({
+      fromValue: from,
+      toValue: to,
+      storeIdValue: storeFilter,
+    });
+
+    downloadExcel(
+      "reporte_merma.xlsx",
+      rows.map((l) => ({
+        Producto: l.product_name,
+        Cantidad: l.quantity,
+        Motivo: l.reason,
+        Sucursal: l.store_name,
+        Fecha: new Date(l.created_at).toLocaleString(),
+      }))
+    );
   }
 
   return (
@@ -666,7 +837,7 @@ export default function Reports() {
         </div>
 
         <button
-          onClick={handleExport}
+          onClick={() => void handleExport()}
           className="border px-4 py-2 rounded hover:bg-gray-50"
         >
           Exportar Excel
@@ -684,21 +855,21 @@ export default function Reports() {
       <ReportHeader
         title="Ventas por Producto"
         onConsult={loadProducts}
-        onExport={handleExport}
+        onExport={handleExportProducts}
       />
       {showProducts && <TableProducts rows={productRows} loading={loadingProducts} />}
 
       <ReportHeader
         title="Ventas por Sucursal"
         onConsult={loadStoresReport}
-        onExport={handleExport}
+        onExport={handleExportStores}
       />
       {showStores && <TableStores rows={storeRows} loading={loadingStores} />}
 
       <ReportHeader
         title="Ventas por Cajero"
         onConsult={loadCashiersReport}
-        onExport={handleExport}
+        onExport={handleExportCashiers}
       />
       {showCashiers && (
         <TableCashiers rows={cashierRows} loading={loadingCashiers} />
@@ -707,7 +878,7 @@ export default function Reports() {
       <ReportHeader
         title="Reporte de Merma"
         onConsult={loadLossReport}
-        onExport={handleExport}
+        onExport={handleExportLoss}
       />
       {showLoss && <TableLoss rows={lossRows} loading={loadingLoss} />}
     </div>
@@ -720,8 +891,8 @@ function ReportHeader({
   onExport,
 }: {
   title: string;
-  onConsult: () => void;
-  onExport: () => void;
+  onConsult: () => void | Promise<void>;
+  onExport: () => void | Promise<void>;
 }) {
   return (
     <div className="bg-white p-4 rounded shadow mb-2 flex justify-between items-center">
@@ -729,14 +900,14 @@ function ReportHeader({
 
       <div className="flex gap-2">
         <button
-          onClick={onConsult}
+          onClick={() => void onConsult()}
           className="bg-black text-white px-3 py-1 rounded hover:bg-gray-800"
         >
           Consultar
         </button>
 
         <button
-          onClick={onExport}
+          onClick={() => void onExport()}
           className="border px-3 py-1 rounded hover:bg-gray-50"
         >
           Exportar Excel

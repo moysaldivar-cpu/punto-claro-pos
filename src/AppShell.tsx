@@ -56,12 +56,20 @@ export default function AppShell() {
           {/* Solo Admin */}
           {rol === "admin" && (
             <>
+              <NavLink to="/promotions" className={linkClass}>
+                Promociones
+              </NavLink>
+
               <NavLink to="/stores" className={linkClass}>
                 Sucursales
               </NavLink>
 
               <NavLink to="/sales" className={linkClass}>
                 Ventas
+              </NavLink>
+
+              <NavLink to="/sales-history" className={linkClass}>
+                Historial de Ventas
               </NavLink>
 
               <NavLink to="/reports" className={linkClass}>

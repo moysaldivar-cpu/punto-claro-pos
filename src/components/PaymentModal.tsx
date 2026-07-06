@@ -36,11 +36,13 @@ export default function PaymentModal({
     }
   }, [open]);
 
+  const safeExchangeRate = Number(exchangeRate || 1);
+
   const cashValue = Number(cash) || 0;
   const cardValue = Number(card) || 0;
   const usdValue = Number(usd) || 0;
 
-  const usdInMXN = usdValue * exchangeRate;
+  const usdInMXN = usdValue * safeExchangeRate;
 
   const sum =
     method === "cash"
@@ -49,12 +51,21 @@ export default function PaymentModal({
       ? cardValue
       : cashValue + cardValue + usdInMXN;
 
+  const totalRounded = Number(total.toFixed(2));
+  const sumRounded = Number(sum.toFixed(2));
+
   const isValid =
     method === "card"
-      ? Number(sum.toFixed(2)) === Number(total.toFixed(2))
-      : Number(sum.toFixed(2)) >= Number(total.toFixed(2));
+      ? sumRounded === totalRounded
+      : sumRounded >= totalRounded;
 
   const change = method === "card" ? 0 : Math.max(0, sum - total);
+
+  const totalUsd = safeExchangeRate > 0 ? total / safeExchangeRate : 0;
+  const paidMxn = sum;
+  const remainingMxn = Math.max(0, total - paidMxn);
+  const remainingUsd =
+    safeExchangeRate > 0 ? remainingMxn / safeExchangeRate : 0;
 
   const handleConfirm = () => {
     if (!isValid) return;
@@ -97,8 +108,21 @@ export default function PaymentModal({
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
         <h3 className="text-lg font-semibold mb-4">Cobro</h3>
 
-        <div className="text-sm text-gray-500 mb-3">
-          Tipo de cambio: {exchangeRate}
+        <div className="rounded-lg border bg-gray-50 p-3 mb-4 text-sm">
+          <div className="flex justify-between mb-1">
+            <span className="text-gray-600">Total MXN</span>
+            <span className="font-semibold">${total.toFixed(2)}</span>
+          </div>
+
+          <div className="flex justify-between mb-1">
+            <span className="text-gray-600">Tipo de cambio</span>
+            <span className="font-semibold">{safeExchangeRate.toFixed(4)}</span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-600">Total aproximado en USD</span>
+            <span className="font-semibold">${totalUsd.toFixed(2)} USD</span>
+          </div>
         </div>
 
         <div className="flex gap-2 mb-4">
@@ -178,21 +202,46 @@ export default function PaymentModal({
           </div>
         )}
 
-        <div className="mt-4 text-sm text-gray-600">
-          Total: <span className="font-semibold">${total.toFixed(2)}</span>
+        <div className="mt-4 rounded-lg border p-3 text-sm">
+          <div className="flex justify-between mb-1">
+            <span className="text-gray-600">Capturado / pagado</span>
+            <span className="font-semibold">${paidMxn.toFixed(2)} MXN</span>
+          </div>
+
+          <div className="flex justify-between mb-1">
+            <span className="text-gray-600">Faltante</span>
+            <span
+              className={`font-semibold ${
+                remainingMxn > 0 ? "text-red-600" : "text-green-700"
+              }`}
+            >
+              ${remainingMxn.toFixed(2)} MXN
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-600">Faltante aproximado en USD</span>
+            <span
+              className={`font-semibold ${
+                remainingMxn > 0 ? "text-red-600" : "text-green-700"
+              }`}
+            >
+              ${remainingUsd.toFixed(2)} USD
+            </span>
+          </div>
         </div>
 
         {(method === "cash" || method === "mixed") && sum >= total && (
           <div className="mt-2 text-sm text-green-600">
-            Cambio: ${change.toFixed(2)}
+            Cambio estimado: ${change.toFixed(2)} MXN
           </div>
         )}
 
         {!isValid && (
           <div className="mt-2 text-xs text-red-600">
             {method === "card"
-              ? `La tarjeta debe cubrir exactamente ${total.toFixed(2)}`
-              : `El pago debe ser al menos ${total.toFixed(2)}`}
+              ? `La tarjeta debe cubrir exactamente $${total.toFixed(2)} MXN`
+              : `El pago debe ser al menos $${total.toFixed(2)} MXN`}
           </div>
         )}
 

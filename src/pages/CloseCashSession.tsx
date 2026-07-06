@@ -59,6 +59,8 @@ type CloseTicketData = {
   realCard: number;
   realUsd: number;
   declaredGeneral: number;
+  emptyCoronaBoxes: number;
+  emptyHeinekenBoxes: number;
   denominationRows: {
     key: CashDenominationKey;
     label: string;
@@ -119,6 +121,9 @@ export default function CloseCashSession() {
   );
   const [realCard, setRealCard] = useState<string>("");
   const [realUsd, setRealUsd] = useState<string>("");
+
+  const [emptyCoronaBoxes, setEmptyCoronaBoxes] = useState<string>("");
+  const [emptyHeinekenBoxes, setEmptyHeinekenBoxes] = useState<string>("");
 
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
@@ -268,8 +273,15 @@ export default function CloseCashSession() {
     return Number(total.toFixed(2));
   }, [denominationRows]);
 
+  const inventoryRowsWithDifferences = useMemo(() => {
+    return inventoryComparison.filter((row) => row.difference !== 0);
+  }, [inventoryComparison]);
+
   const realCardNumber = Number(realCard) || 0;
   const realUsdNumber = Number(realUsd) || 0;
+
+  const emptyCoronaBoxesNumber = Number(emptyCoronaBoxes) || 0;
+  const emptyHeinekenBoxesNumber = Number(emptyHeinekenBoxes) || 0;
 
   const expectedCash = totals?.total_cash_mxn || 0;
   const expectedCard = totals?.total_card_mxn || 0;
@@ -329,6 +341,24 @@ export default function CloseCashSession() {
       ...prev,
       [key]: normalized,
     }));
+  }
+
+  function handleEmptyBoxesChange(
+    value: string,
+    setter: (nextValue: string) => void
+  ) {
+    if (value === "") {
+      setter("");
+      return;
+    }
+
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return;
+    }
+
+    setter(Math.floor(parsed).toString());
   }
 
   async function handleCloseSession() {
@@ -391,6 +421,8 @@ export default function CloseCashSession() {
       realCard: realCardNumber,
       realUsd: realUsdNumber,
       declaredGeneral: Number(declaredGeneral.toFixed(2)),
+      emptyCoronaBoxes: emptyCoronaBoxesNumber,
+      emptyHeinekenBoxes: emptyHeinekenBoxesNumber,
       denominationRows,
     });
 
@@ -518,6 +550,52 @@ export default function CloseCashSession() {
                   </div>
                 </div>
 
+                <div className="border rounded p-4 bg-gray-50">
+                  <h3 className="font-semibold mb-1">Cajas vacías</h3>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Solo dato informativo. No afecta caja, inventario ni reportes.
+                  </p>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm mb-1">
+                        Cajas vacías Corona
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="border p-2 w-full rounded"
+                        value={emptyCoronaBoxes}
+                        onChange={(e) =>
+                          handleEmptyBoxesChange(e.target.value, setEmptyCoronaBoxes)
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm mb-1">
+                        Cajas vacías Heineken
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="border p-2 w-full rounded"
+                        value={emptyHeinekenBoxes}
+                        onChange={(e) =>
+                          handleEmptyBoxesChange(
+                            e.target.value,
+                            setEmptyHeinekenBoxes
+                          )
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="border-t pt-4">
                   <div className="flex justify-between items-center">
                     <span className="text-base font-semibold">
@@ -578,47 +656,50 @@ export default function CloseCashSession() {
               </div>
             )}
 
-            <div className="bg-white shadow rounded p-6 mb-6">
-              <h2 className="text-lg font-semibold mb-4">Diferencias de Inventario</h2>
+            {isAdmin && (
+              <div className="bg-white shadow rounded p-6 mb-6">
+                <h2 className="text-lg font-semibold mb-4">Diferencias de Inventario</h2>
 
-              {!hasCounts ? (
-                <div className="text-sm text-gray-600">
-                  No hubo conteo de turno para esta sesión, por lo tanto no se puede
-                  calcular una comparación real de inventario en este cierre.
-                </div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">Producto</th>
-                      <th className="text-right p-2">Sistema</th>
-                      <th className="text-right p-2">Conteo</th>
-                      <th className="text-right p-2">Diferencia</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inventoryComparison.map((row) => (
-                      <tr key={row.product_id} className="border-b">
-                        <td className="p-2">{row.name}</td>
-                        <td className="text-right p-2">{row.system_stock}</td>
-                        <td className="text-right p-2">{row.real_stock}</td>
-                        <td
-                          className={`text-right p-2 font-semibold ${
-                            row.difference === 0
-                              ? "text-green-600"
-                              : row.difference > 0
-                              ? "text-red-600"
-                              : "text-blue-600"
-                          }`}
-                        >
-                          {row.difference}
-                        </td>
+                {!hasCounts ? (
+                  <div className="text-sm text-gray-600">
+                    No hubo conteo de turno para esta sesión, por lo tanto no se puede
+                    calcular una comparación real de inventario en este cierre.
+                  </div>
+                ) : inventoryRowsWithDifferences.length === 0 ? (
+                  <div className="text-sm text-gray-600">
+                    No hay diferencias de inventario para mostrar. Todos los productos
+                    capturados coinciden con el sistema.
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Producto</th>
+                        <th className="text-right p-2">Sistema</th>
+                        <th className="text-right p-2">Conteo</th>
+                        <th className="text-right p-2">Diferencia</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                    </thead>
+                    <tbody>
+                      {inventoryRowsWithDifferences.map((row) => (
+                        <tr key={row.product_id} className="border-b">
+                          <td className="p-2">{row.name}</td>
+                          <td className="text-right p-2">{row.system_stock}</td>
+                          <td className="text-right p-2">{row.real_stock}</td>
+                          <td
+                            className={`text-right p-2 font-semibold ${
+                              row.difference > 0 ? "text-red-600" : "text-blue-600"
+                            }`}
+                          >
+                            {row.difference}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
 
             <button
               onClick={handleCloseSession}
@@ -662,6 +743,9 @@ function CloseTicketModal({
   function usd(value: number) {
     return `$${Number(value || 0).toFixed(4)}`;
   }
+
+  const hasEmptyBoxes =
+    ticket.emptyCoronaBoxes > 0 || ticket.emptyHeinekenBoxes > 0;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -763,6 +847,32 @@ function CloseTicketModal({
             <div className="flex justify-between font-bold text-base pt-2">
               <span>Total declarado</span>
               <span>{money(ticket.declaredGeneral)}</span>
+            </div>
+          </div>
+
+          <div className="border-t border-b py-3 mb-4">
+            <div className="font-semibold mb-2 text-sm">Cajas vacías</div>
+
+            {!hasEmptyBoxes ? (
+              <div className="text-sm text-gray-500">
+                Sin cajas vacías capturadas.
+              </div>
+            ) : (
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Corona</span>
+                  <span>{ticket.emptyCoronaBoxes}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Heineken</span>
+                  <span>{ticket.emptyHeinekenBoxes}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="text-xs text-gray-500 mt-2">
+              Dato informativo. No afecta caja, inventario ni reportes.
             </div>
           </div>
 

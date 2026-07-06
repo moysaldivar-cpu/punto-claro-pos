@@ -783,7 +783,7 @@ export default function CajeroPOS() {
 
         if (cashWithdrawalBlocked) {
           alert(
-            "Ventas bloqueadas: hay $2,000 MXN o más generados por dinero físico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
+            "Ventas bloqueadas: hay $2,000 MXN o más generados por ventas en efectivo disponibles para retiro. Debe realizarse el retiro antes de continuar."
           );
           return;
         }
@@ -814,15 +814,9 @@ export default function CajeroPOS() {
     setCashStatusLoading(true);
 
     try {
-      const { data: sessionRow, error: sessionError } = await supabase
-        .from("cash_sessions")
-        .select("exchange_rate")
-        .eq("id", currentSessionId)
-        .maybeSingle();
-
       const { data: cashSalesRows, error: cashSalesError } = await supabase
         .from("sales")
-        .select("payment_cash, payment_usd")
+        .select("payment_cash")
         .eq("cash_session_id", currentSessionId);
 
       const { data: withdrawalRows, error: withdrawalError } = await supabase
@@ -830,10 +824,10 @@ export default function CajeroPOS() {
         .select("amount")
         .eq("cash_session_id", currentSessionId);
 
-      if (sessionError || cashSalesError || withdrawalError) {
+      if (cashSalesError || withdrawalError) {
         console.error(
           "Error calculando disponible para retiro:",
-          sessionError || cashSalesError || withdrawalError
+          cashSalesError || withdrawalError
         );
 
         setCashAvailableForWithdrawal(0);
@@ -846,16 +840,9 @@ export default function CajeroPOS() {
         };
       }
 
-      const sessionRate = Number(
-        sessionRow?.exchange_rate || exchangeRate || 1
-      );
-
-      const totalPhysicalCashMxn = round2(
+      const totalCashSalesMxn = round2(
         (cashSalesRows ?? []).reduce((acc, row: any) => {
-          const cashMxn = Number(row.payment_cash || 0);
-          const usdAsMxn = Number(row.payment_usd || 0) * sessionRate;
-
-          return acc + cashMxn + usdAsMxn;
+          return acc + Number(row.payment_cash || 0);
         }, 0)
       );
 
@@ -867,7 +854,7 @@ export default function CajeroPOS() {
 
       const availableForWithdrawal = Math.max(
         0,
-        round2(totalPhysicalCashMxn - totalWithdrawnMxn)
+        round2(totalCashSalesMxn - totalWithdrawnMxn)
       );
 
       const blocked = availableForWithdrawal >= WITHDRAWAL_THRESHOLD_MXN;
@@ -1140,7 +1127,7 @@ export default function CajeroPOS() {
 
     if (cashWithdrawalBlocked) {
       alert(
-        "Ventas bloqueadas: hay $2,000 MXN o más generados por dinero físico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
+        "Ventas bloqueadas: hay $2,000 MXN o más generados por ventas en efectivo disponibles para retiro. Debe realizarse el retiro antes de continuar."
       );
       return;
     }
@@ -1358,19 +1345,15 @@ export default function CajeroPOS() {
 
     if (preSaleCashStatus.blocked) {
       alert(
-        "Ventas bloqueadas: hay $2,000 MXN o más generados por dinero físico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
+        "Ventas bloqueadas: hay $2,000 MXN o más generados por ventas en efectivo disponibles para retiro. Debe realizarse el retiro antes de continuar."
       );
       setIsPaymentOpen(false);
       return;
     }
 
-    const physicalCashFromThisSale = round2(
-      Number(normalizedPayment.payment_cash || 0) +
-        Number(normalizedPayment.payment_usd || 0) * activeExchangeRate
-    );
-
     const availableAfterThisSale = round2(
-      preSaleCashStatus.availableForWithdrawal + physicalCashFromThisSale
+      preSaleCashStatus.availableForWithdrawal +
+        Number(normalizedPayment.payment_cash || 0)
     );
 
     if (availableAfterThisSale >= WITHDRAWAL_THRESHOLD_MXN) {
@@ -1755,8 +1738,8 @@ export default function CajeroPOS() {
           Ventas bloqueadas temporalmente: ya hay{" "}
           ${cashAvailableForWithdrawal.toFixed(2)} disponibles para retiro,
           superando el umbral de ${WITHDRAWAL_THRESHOLD_MXN.toFixed(2)}{" "}
-          generados por dinero físico en caja. Debe realizarse el retiro antes
-          de continuar.
+          generados por ventas en efectivo. Debe realizarse el retiro antes de
+          continuar.
         </div>
       )}
 
@@ -1765,7 +1748,7 @@ export default function CajeroPOS() {
         cashAvailableForWithdrawal > 0 && (
           <div className="mb-4 rounded border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800 font-medium">
             Disponible para retiro: ${cashAvailableForWithdrawal.toFixed(2)} MXN
-            generados por dinero físico en caja.
+            generados por ventas en efectivo.
           </div>
         )}
 
