@@ -15,6 +15,28 @@ type Props = {
   }) => void;
 };
 
+function parseMoneyInput(value: string) {
+  if (!value) return 0;
+
+  const normalized = value
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "")
+    .replace(/(\..*)\./g, "$1");
+
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+
+  return parsed;
+}
+
+function normalizeMoneyText(value: string) {
+  return value
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "")
+    .replace(/(\..*)\./g, "$1");
+}
+
 export default function PaymentModal({
   open,
   total,
@@ -38,9 +60,9 @@ export default function PaymentModal({
 
   const safeExchangeRate = Number(exchangeRate || 1);
 
-  const cashValue = Number(cash) || 0;
-  const cardValue = Number(card) || 0;
-  const usdValue = Number(usd) || 0;
+  const cashValue = parseMoneyInput(cash);
+  const cardValue = parseMoneyInput(card);
+  const usdValue = parseMoneyInput(usd);
 
   const usdInMXN = usdValue * safeExchangeRate;
 
@@ -104,7 +126,7 @@ export default function PaymentModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3">
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
         <h3 className="text-lg font-semibold mb-4">Cobro</h3>
 
@@ -161,26 +183,31 @@ export default function PaymentModal({
                 Efectivo (MXN)
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={cash}
-                onChange={(e) => setCash(e.target.value)}
+                onChange={(e) => setCash(normalizeMoneyText(e.target.value))}
                 className="w-full rounded-lg border px-3 py-2"
                 placeholder="0.00"
               />
             </div>
 
             <div className="mb-3">
-              <label className="block text-sm text-gray-600 mb-1">USD</label>
+              <label className="block text-sm text-gray-600 mb-1">
+                Dólar estadounidense
+              </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={usd}
-                onChange={(e) => setUsd(e.target.value)}
+                onChange={(e) => setUsd(normalizeMoneyText(e.target.value))}
                 className="w-full rounded-lg border px-3 py-2"
                 placeholder="0.00"
               />
               {usdValue > 0 && (
                 <div className="text-xs text-gray-500 mt-1">
-                  Equivalente MXN: ${usdInMXN.toFixed(2)}
+                  {usdValue.toFixed(2)} USD × {safeExchangeRate.toFixed(4)} ={" "}
+                  ${usdInMXN.toFixed(2)} MXN
                 </div>
               )}
             </div>
@@ -193,9 +220,10 @@ export default function PaymentModal({
               Tarjeta (MXN)
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={card}
-              onChange={(e) => setCard(e.target.value)}
+              onChange={(e) => setCard(normalizeMoneyText(e.target.value))}
               className="w-full rounded-lg border px-3 py-2"
               placeholder="0.00"
             />
@@ -250,10 +278,7 @@ export default function PaymentModal({
         </div>
 
         <div className="mt-6 flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-lg border py-2"
-          >
+          <button onClick={onClose} className="flex-1 rounded-lg border py-2">
             Cancelar
           </button>
 

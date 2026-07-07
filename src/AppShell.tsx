@@ -32,8 +32,8 @@ export default function AppShell() {
             Cerrar Caja
           </NavLink>
 
-          {/* Registrar Merma – cajero, gerente y admin */}
-          {(rol === "cajero" || rol === "gerente" || rol === "admin") && (
+          {/* Registrar Merma – solo gerente y admin */}
+          {(rol === "gerente" || rol === "admin") && (
             <NavLink to="/inventory-loss" className={linkClass}>
               Registrar Merma
             </NavLink>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { usePosAuth } from "@/contexts/AuthContext";
 
@@ -30,6 +31,7 @@ function chunkArray<T>(array: T[], size: number): T[][] {
 
 export default function ConteoTurno() {
   const { user } = usePosAuth();
+  const navigate = useNavigate();
 
   const storeId = user?.store_id || localStorage.getItem("store_id");
 
@@ -38,8 +40,9 @@ export default function ConteoTurno() {
     Record<string, { fridge: number; warehouse: number }>
   >({});
   const [cashSessionId, setCashSessionId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
-  const [savingProductId, setSavingProductId] = useState<string | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -174,15 +177,39 @@ export default function ConteoTurno() {
     loadData();
   }, [storeId, user?.id]);
 
-  async function saveCount(productId: string) {
-    if (!cashSessionId || !storeId || !user?.id) return;
+  function updateCount(
+    productId: string,
+    field: "fridge" | "warehouse",
+    value: string
+  ) {
+    const parsed = value === "" ? 0 : Number(value);
 
-    const productCount = counts[productId] || {
-      fridge: 0,
-      warehouse: 0,
-    };
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return;
+    }
 
-    setSavingProductId(productId);
+    setCounts((prev) => ({
+      ...prev,
+      [productId]: {
+        fridge: field === "fridge" ? parsed : prev[productId]?.fridge ?? 0,
+        warehouse:
+          field === "warehouse" ? parsed : prev[productId]?.warehouse ?? 0,
+      },
+    }));
+  }
+
+  async function saveAllCountsAndFinish() {
+    if (!cashSessionId || !storeId || !user?.id) {
+      alert("No hay sesión, usuario o sucursal activa.");
+      return;
+    }
+
+    if (products.length === 0) {
+      navigate("/pos");
+      return;
+    }
+
+    setSavingAll(true);
 
     const { data: currentSession, error: sessionError } = await supabase
       .from("cash_sessions")
@@ -194,39 +221,53 @@ export default function ConteoTurno() {
       .maybeSingle();
 
     if (sessionError) {
-      setSavingProductId(null);
+      setSavingAll(false);
       alert("Error al validar turno: " + sessionError.message);
       return;
     }
 
     if (!currentSession) {
-      setSavingProductId(null);
+      setSavingAll(false);
       alert(
         "El turno ya no está abierto para este usuario en esta sucursal. Actualiza la pantalla y vuelve a intentar."
       );
       return;
     }
 
-    const { error } = await supabase.from("inventory_counts").upsert(
-      {
+    const rowsToSave = products.map((product) => {
+      const productCount = counts[product.id] || {
+        fridge: 0,
+        warehouse: 0,
+      };
+
+      return {
         store_id: storeId,
         cash_session_id: cashSessionId,
-        product_id: productId,
-        fridge_qty: productCount.fridge,
-        warehouse_qty: productCount.warehouse,
+        product_id: product.id,
+        fridge_qty: Number(productCount.fridge || 0),
+        warehouse_qty: Number(productCount.warehouse || 0),
         created_by: user.id,
-      },
-      {
+      };
+    });
+
+    const chunks = chunkArray(rowsToSave, 100);
+
+    for (const chunk of chunks) {
+      const { error } = await supabase.from("inventory_counts").upsert(chunk, {
         onConflict: "cash_session_id,product_id",
+      });
+
+      if (error) {
+        console.error(error);
+        setSavingAll(false);
+        alert("Error al guardar el conteo completo.");
+        return;
       }
-    );
-
-    setSavingProductId(null);
-
-    if (error) {
-      console.error(error);
-      alert("Error al guardar conteo");
     }
+
+    setSavingAll(false);
+    alert("Conteo de inventario guardado correctamente.");
+    navigate("/pos");
   }
 
   if (loading) {
@@ -246,85 +287,134 @@ export default function ConteoTurno() {
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">
-        Conteo de Inventario - Inicio de Turno
-      </h1>
+    <div className="p-3 sm:p-6 pb-28">
+      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">
+            Conteo de Inventario - Inicio de Turno
+          </h1>
 
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-100 text-left">
-            <tr>
-              <th className="p-3">Producto</th>
-              <th className="p-3">Refrigerador</th>
-              <th className="p-3">Bodega</th>
-              <th className="p-3">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
+          <p className="text-sm text-gray-600 mt-1">
+            Captura refrigerador y bodega. Al terminar, presiona Guardar todo.
+          </p>
+        </div>
+
+        <button
+          onClick={saveAllCountsAndFinish}
+          disabled={savingAll}
+          className="bg-green-600 text-white px-4 py-3 rounded font-semibold hover:bg-green-700 disabled:opacity-50"
+        >
+          {savingAll ? "Guardando conteo..." : "Guardar todo y concluir inventario"}
+        </button>
+      </div>
+
+      {products.length === 0 ? (
+        <div className="bg-white shadow rounded-lg p-4 text-gray-500">
+          No hay productos disponibles para esta sucursal.
+        </div>
+      ) : (
+        <>
+          <div className="hidden lg:block bg-white shadow rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-100 text-left">
+                <tr>
+                  <th className="p-3">Producto</th>
+                  <th className="p-3">Refrigerador</th>
+                  <th className="p-3">Bodega</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {products.map((product) => (
+                  <tr key={product.id} className="border-t">
+                    <td className="p-3 font-medium">{product.name}</td>
+
+                    <td className="p-3">
+                      <input
+                        type="number"
+                        min="0"
+                        value={counts[product.id]?.fridge ?? ""}
+                        onChange={(e) =>
+                          updateCount(product.id, "fridge", e.target.value)
+                        }
+                        className="border rounded px-2 py-2 w-32"
+                      />
+                    </td>
+
+                    <td className="p-3">
+                      <input
+                        type="number"
+                        min="0"
+                        value={counts[product.id]?.warehouse ?? ""}
+                        onChange={(e) =>
+                          updateCount(product.id, "warehouse", e.target.value)
+                        }
+                        className="border rounded px-2 py-2 w-32"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="lg:hidden space-y-3">
             {products.map((product) => (
-              <tr key={product.id} className="border-t">
-                <td className="p-3">{product.name}</td>
+              <div
+                key={product.id}
+                className="bg-white shadow rounded-lg p-4 border"
+              >
+                <div className="font-semibold text-lg leading-tight mb-3">
+                  {product.name}
+                </div>
 
-                <td className="p-3">
-                  <input
-                    type="number"
-                    min="0"
-                    value={counts[product.id]?.fridge ?? ""}
-                    onChange={(e) =>
-                      setCounts({
-                        ...counts,
-                        [product.id]: {
-                          fridge: Number(e.target.value),
-                          warehouse: counts[product.id]?.warehouse ?? 0,
-                        },
-                      })
-                    }
-                    className="border rounded px-2 py-1 w-24"
-                  />
-                </td>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="block text-sm text-gray-600 mb-1">
+                      Refrigerador
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={counts[product.id]?.fridge ?? ""}
+                      onChange={(e) =>
+                        updateCount(product.id, "fridge", e.target.value)
+                      }
+                      className="border rounded px-3 py-2 w-full text-lg"
+                    />
+                  </label>
 
-                <td className="p-3">
-                  <input
-                    type="number"
-                    min="0"
-                    value={counts[product.id]?.warehouse ?? ""}
-                    onChange={(e) =>
-                      setCounts({
-                        ...counts,
-                        [product.id]: {
-                          fridge: counts[product.id]?.fridge ?? 0,
-                          warehouse: Number(e.target.value),
-                        },
-                      })
-                    }
-                    className="border rounded px-2 py-1 w-24"
-                  />
-                </td>
-
-                <td className="p-3">
-                  <button
-                    onClick={() => saveCount(product.id)}
-                    disabled={savingProductId === product.id}
-                    className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {savingProductId === product.id
-                      ? "Guardando..."
-                      : "Guardar"}
-                  </button>
-                </td>
-              </tr>
+                  <label className="block">
+                    <span className="block text-sm text-gray-600 mb-1">
+                      Bodega
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={counts[product.id]?.warehouse ?? ""}
+                      onChange={(e) =>
+                        updateCount(product.id, "warehouse", e.target.value)
+                      }
+                      className="border rounded px-3 py-2 w-full text-lg"
+                    />
+                  </label>
+                </div>
+              </div>
             ))}
+          </div>
+        </>
+      )}
 
-            {products.length === 0 && (
-              <tr>
-                <td colSpan={4} className="p-4 text-gray-500">
-                  No hay productos disponibles para esta sucursal.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 lg:hidden">
+        <button
+          onClick={saveAllCountsAndFinish}
+          disabled={savingAll}
+          className="bg-green-600 text-white px-4 py-3 rounded w-full font-semibold disabled:opacity-50"
+        >
+          {savingAll ? "Guardando conteo..." : "Guardar todo y concluir inventario"}
+        </button>
       </div>
     </div>
   );
