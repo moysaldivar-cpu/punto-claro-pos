@@ -7,32 +7,14 @@ type Store = {
   name: string;
 };
 
-type SaleRow = {
-  id: string;
-  created_at: string;
-  total: number;
-  payment_cash: number;
-  payment_card: number;
-  payment_usd: number;
-  store_id: string;
-  user_name: string | null;
-};
-
 type ProductInfo = {
   id: string;
   name: string;
   cost: number;
 };
 
-type SalesItemRow = {
-  sale_id: string;
-  product_id: string;
-  quantity: number;
-  unit_price: number;
-  cost_at_sale: number | null;
-};
-
 type ProductReportRow = {
+  product_id: string;
   product_name: string;
   quantity_sold: number;
   total_sales: number;
@@ -41,6 +23,7 @@ type ProductReportRow = {
 };
 
 type StoreReportRow = {
+  store_id: string;
   store_name: string;
   total_sales: number;
   total_cash: number;
@@ -74,6 +57,13 @@ type LossRow = {
   product_name: string;
   store_name: string;
   cost: number;
+};
+
+type ReportFilters = {
+  fromValue: string;
+  toValue: string;
+  storeIdValue: string;
+  cashierValue: string;
 };
 
 export default function Reports() {
@@ -126,19 +116,44 @@ export default function Reports() {
     loadKpisData();
   }, [from, to, storeFilter, cashierFilter]);
 
+  function buildRpcParams({
+    fromValue,
+    toValue,
+    storeIdValue,
+    cashierValue,
+  }: ReportFilters) {
+    return {
+      p_from: new Date(fromValue).toISOString(),
+      p_to: new Date(toValue).toISOString(),
+      p_store_id: storeIdValue === "all" ? null : storeIdValue,
+      p_cashier: cashierValue === "all" ? null : cashierValue,
+    };
+  }
+
   async function loadStores() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("pos_stores")
       .select("id,name")
       .order("name", { ascending: true });
 
-    setStores(data || []);
+    if (error) {
+      console.error(error);
+      setStores([]);
+      return;
+    }
+
+    setStores(
+      ((data || []) as any[]).map((store) => ({
+        id: String(store.id),
+        name: String(store.name || "Sucursal").trim(),
+      }))
+    );
   }
 
   async function loadCashierOptions() {
     if (!from || !to) return;
 
-    const sales = await fetchFilteredSales({
+    const rows = await fetchCashierReportRows({
       fromValue: from,
       toValue: to,
       storeIdValue: storeFilter,
@@ -147,8 +162,8 @@ export default function Reports() {
 
     const options = Array.from(
       new Set(
-        sales
-          .map((row) => String(row.user_name || "").trim())
+        rows
+          .map((row) => String(row.cashier || "").trim())
           .filter((name) => name.length > 0)
       )
     ).sort((a, b) => a.localeCompare(b));
@@ -160,137 +175,37 @@ export default function Reports() {
     }
   }
 
-  async function fetchFilteredSales({
-    fromValue,
-    toValue,
-    storeIdValue,
-    cashierValue,
-  }: {
-    fromValue: string;
-    toValue: string;
-    storeIdValue: string;
-    cashierValue: string;
-  }) {
-    const fromDate = new Date(fromValue).toISOString();
-    const toDate = new Date(toValue).toISOString();
-
-    let query = supabase
-      .from("sales")
-      .select(
-        "id, created_at, total, payment_cash, payment_card, payment_usd, store_id, user_name"
-      )
-      .gte("created_at", fromDate)
-      .lte("created_at", toDate)
-      .order("created_at", { ascending: false });
-
-    if (storeIdValue !== "all") {
-      query = query.eq("store_id", storeIdValue);
-    }
-
-    if (cashierValue !== "all") {
-      query = query.eq("user_name", cashierValue);
-    }
-
-    const { data } = await query;
-
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      created_at: row.created_at,
-      total: Number(row.total || 0),
-      payment_cash: Number(row.payment_cash || 0),
-      payment_card: Number(row.payment_card || 0),
-      payment_usd: Number(row.payment_usd || 0),
-      store_id: String(row.store_id || ""),
-      user_name: row.user_name ? String(row.user_name) : null,
-    })) as SaleRow[];
-  }
-
   async function fetchProductRows({
     fromValue,
     toValue,
     storeIdValue,
     cashierValue,
-  }: {
-    fromValue: string;
-    toValue: string;
-    storeIdValue: string;
-    cashierValue: string;
-  }): Promise<ProductReportRow[]> {
-    const sales = await fetchFilteredSales({
-      fromValue,
-      toValue,
-      storeIdValue,
-      cashierValue,
-    });
+  }: ReportFilters): Promise<ProductReportRow[]> {
+    const { data, error } = await supabase.rpc(
+      "get_report_sales_by_product_filtered",
+      buildRpcParams({
+        fromValue,
+        toValue,
+        storeIdValue,
+        cashierValue,
+      })
+    );
 
-    if (sales.length === 0) {
+    if (error) {
+      console.error(error);
       return [];
     }
 
-    const saleIds = sales.map((sale) => sale.id);
-
-    const { data: itemsData } = await supabase
-      .from("sales_items")
-      .select("sale_id, product_id, quantity, unit_price, cost_at_sale")
-      .in("sale_id", saleIds);
-
-    if (!itemsData || itemsData.length === 0) {
-      return [];
-    }
-
-    const productIds = Array.from(
-      new Set((itemsData || []).map((item: any) => item.product_id))
-    );
-
-    const { data: productsData } = await supabase
-      .from("products")
-      .select("id, name, cost")
-      .in("id", productIds);
-
-    const productMap = new Map<string, ProductInfo>(
-      ((productsData || []) as any[]).map((product) => [
-        String(product.id),
-        {
-          id: String(product.id),
-          name: String(product.name || "Producto"),
-          cost: Number(product.cost || 0),
-        },
-      ])
-    );
-
-    const grouped = new Map<string, ProductReportRow>();
-
-    ((itemsData || []) as SalesItemRow[]).forEach((item: any) => {
-      const productId = String(item.product_id || "");
-      const quantity = Number(item.quantity || 0);
-      const unitPrice = Number(item.unit_price || 0);
-      const costAtSale =
-        item.cost_at_sale === null || item.cost_at_sale === undefined
-          ? null
-          : Number(item.cost_at_sale);
-
-      const product = productMap.get(productId);
-      const unitCost = costAtSale ?? Number(product?.cost || 0);
-
-      const current = grouped.get(productId) || {
-        product_name: product?.name || "Producto",
-        quantity_sold: 0,
-        total_sales: 0,
-        total_cost: 0,
-        profit: 0,
-      };
-
-      current.quantity_sold += quantity;
-      current.total_sales += unitPrice * quantity;
-      current.total_cost += unitCost * quantity;
-      current.profit = current.total_sales - current.total_cost;
-
-      grouped.set(productId, current);
-    });
-
-    return Array.from(grouped.values()).sort(
-      (a, b) => b.total_sales - a.total_sales
-    );
+    return ((data || []) as any[])
+      .map((row) => ({
+        product_id: String(row.product_id || ""),
+        product_name: String(row.product_name || "Producto").trim(),
+        quantity_sold: Number(row.quantity_sold || 0),
+        total_sales: Number(row.total_sales || 0),
+        total_cost: Number(row.total_cost || 0),
+        profit: Number(row.profit || 0),
+      }))
+      .sort((a, b) => b.total_sales - a.total_sales);
   }
 
   async function fetchStoreReportRows({
@@ -298,45 +213,32 @@ export default function Reports() {
     toValue,
     storeIdValue,
     cashierValue,
-  }: {
-    fromValue: string;
-    toValue: string;
-    storeIdValue: string;
-    cashierValue: string;
-  }): Promise<StoreReportRow[]> {
-    const sales = await fetchFilteredSales({
-      fromValue,
-      toValue,
-      storeIdValue,
-      cashierValue,
-    });
-
-    const storeNameMap = new Map<string, string>(
-      stores.map((store) => [store.id, store.name])
+  }: ReportFilters): Promise<StoreReportRow[]> {
+    const { data, error } = await supabase.rpc(
+      "get_report_sales_by_store_filtered",
+      buildRpcParams({
+        fromValue,
+        toValue,
+        storeIdValue,
+        cashierValue,
+      })
     );
 
-    const grouped = new Map<string, StoreReportRow>();
+    if (error) {
+      console.error(error);
+      return [];
+    }
 
-    sales.forEach((sale) => {
-      const current = grouped.get(sale.store_id) || {
-        store_name: storeNameMap.get(sale.store_id) || "Sucursal",
-        total_sales: 0,
-        total_cash: 0,
-        total_card: 0,
-        total_usd: 0,
-      };
-
-      current.total_sales += Number(sale.total || 0);
-      current.total_cash += Number(sale.payment_cash || 0);
-      current.total_card += Number(sale.payment_card || 0);
-      current.total_usd += Number(sale.payment_usd || 0);
-
-      grouped.set(sale.store_id, current);
-    });
-
-    return Array.from(grouped.values()).sort(
-      (a, b) => b.total_sales - a.total_sales
-    );
+    return ((data || []) as any[])
+      .map((row) => ({
+        store_id: String(row.store_id || ""),
+        store_name: String(row.store_name || "Sucursal").trim(),
+        total_sales: Number(row.total_sales || 0),
+        total_cash: Number(row.total_cash || 0),
+        total_card: Number(row.total_card || 0),
+        total_usd: Number(row.total_usd || 0),
+      }))
+      .sort((a, b) => b.total_sales - a.total_sales);
   }
 
   async function fetchCashierReportRows({
@@ -344,45 +246,32 @@ export default function Reports() {
     toValue,
     storeIdValue,
     cashierValue,
-  }: {
-    fromValue: string;
-    toValue: string;
-    storeIdValue: string;
-    cashierValue: string;
-  }): Promise<CashierReportRow[]> {
-    const sales = await fetchFilteredSales({
-      fromValue,
-      toValue,
-      storeIdValue,
-      cashierValue,
-    });
-
-    const grouped = new Map<string, CashierReportRow>();
-
-    sales.forEach((sale) => {
-      const cashier = String(sale.user_name || "Sin nombre");
-
-      const current = grouped.get(cashier) || {
-        cashier,
-        total_sales: 0,
-        total_cash: 0,
-        total_card: 0,
-        total_usd: 0,
-        transactions: 0,
-      };
-
-      current.total_sales += Number(sale.total || 0);
-      current.total_cash += Number(sale.payment_cash || 0);
-      current.total_card += Number(sale.payment_card || 0);
-      current.total_usd += Number(sale.payment_usd || 0);
-      current.transactions += 1;
-
-      grouped.set(cashier, current);
-    });
-
-    return Array.from(grouped.values()).sort(
-      (a, b) => b.total_sales - a.total_sales
+  }: ReportFilters): Promise<CashierReportRow[]> {
+    const { data, error } = await supabase.rpc(
+      "get_report_sales_by_cashier_filtered",
+      buildRpcParams({
+        fromValue,
+        toValue,
+        storeIdValue,
+        cashierValue,
+      })
     );
+
+    if (error) {
+      console.error(error);
+      return [];
+    }
+
+    return ((data || []) as any[])
+      .map((row) => ({
+        cashier: String(row.cashier || "Sin nombre").trim(),
+        total_sales: Number(row.total_sales || 0),
+        total_cash: Number(row.total_cash || 0),
+        total_card: Number(row.total_card || 0),
+        total_usd: Number(row.total_usd || 0),
+        transactions: Number(row.transactions || 0),
+      }))
+      .sort((a, b) => b.total_sales - a.total_sales);
   }
 
   async function fetchLossRows({
@@ -442,7 +331,7 @@ export default function Reports() {
         String(product.id),
         {
           id: String(product.id),
-          name: String(product.name || "Producto"),
+          name: String(product.name || "Producto").trim(),
           cost: Number(product.cost || 0),
         },
       ])
@@ -451,7 +340,7 @@ export default function Reports() {
     const storeMap = new Map<string, string>(
       ((storesData || []) as any[]).map((store) => [
         String(store.id),
-        String(store.name || "Sucursal"),
+        String(store.name || "Sucursal").trim(),
       ])
     );
 
@@ -648,27 +537,27 @@ export default function Reports() {
       ...products.map((p) => ({
         Seccion: "Ventas por Producto",
         Producto: p.product_name,
-        Cantidad: p.quantity_sold,
-        Total: p.total_sales,
-        Costo: p.total_cost,
-        Utilidad: p.profit,
+        Cantidad_Neta: p.quantity_sold,
+        Venta_Neta: p.total_sales,
+        Costo_Neto: p.total_cost,
+        Utilidad_Neta: p.profit,
       })),
       ...storesReport.map((s) => ({
         Seccion: "Ventas por Sucursal",
         Sucursal: s.store_name,
-        Ventas: s.total_sales,
-        Efectivo_MXN: s.total_cash,
-        Tarjeta_MXN: s.total_card,
-        USD: s.total_usd,
+        Venta_Neta: s.total_sales,
+        Efectivo_MXN_Neto: s.total_cash,
+        Tarjeta_MXN_Neto: s.total_card,
+        USD_Neto: s.total_usd,
       })),
       ...cashiersReport.map((c) => ({
         Seccion: "Ventas por Cajero",
         Cajero: c.cashier,
-        Ventas: c.total_sales,
-        Efectivo_MXN: c.total_cash,
-        Tarjeta_MXN: c.total_card,
-        USD: c.total_usd,
-        Transacciones: c.transactions,
+        Venta_Neta: c.total_sales,
+        Efectivo_MXN_Neto: c.total_cash,
+        Tarjeta_MXN_Neto: c.total_card,
+        USD_Neto: c.total_usd,
+        Transacciones_Netas: c.transactions,
       })),
       ...losses.map((l) => ({
         Seccion: "Merma",
@@ -697,10 +586,10 @@ export default function Reports() {
       "ventas_por_producto.xlsx",
       rows.map((p) => ({
         Producto: p.product_name,
-        Cantidad: p.quantity_sold,
-        Ventas: p.total_sales,
-        Costo: p.total_cost,
-        Utilidad: p.profit,
+        Cantidad_Neta: p.quantity_sold,
+        Venta_Neta: p.total_sales,
+        Costo_Neto: p.total_cost,
+        Utilidad_Neta: p.profit,
       }))
     );
   }
@@ -719,10 +608,10 @@ export default function Reports() {
       "ventas_por_sucursal.xlsx",
       rows.map((s) => ({
         Sucursal: s.store_name,
-        Ventas: s.total_sales,
-        Efectivo_MXN: s.total_cash,
-        Tarjeta_MXN: s.total_card,
-        USD: s.total_usd,
+        Venta_Neta: s.total_sales,
+        Efectivo_MXN_Neto: s.total_cash,
+        Tarjeta_MXN_Neto: s.total_card,
+        USD_Neto: s.total_usd,
       }))
     );
   }
@@ -741,11 +630,11 @@ export default function Reports() {
       "ventas_por_cajero.xlsx",
       rows.map((c) => ({
         Cajero: c.cashier,
-        Ventas: c.total_sales,
-        Efectivo_MXN: c.total_cash,
-        Tarjeta_MXN: c.total_card,
-        USD: c.total_usd,
-        Transacciones: c.transactions,
+        Venta_Neta: c.total_sales,
+        Efectivo_MXN_Neto: c.total_cash,
+        Tarjeta_MXN_Neto: c.total_card,
+        USD_Neto: c.total_usd,
+        Transacciones_Netas: c.transactions,
       }))
     );
   }
@@ -776,9 +665,9 @@ export default function Reports() {
       <h1 className="text-2xl font-bold mb-4">Reportes</h1>
 
       <div className="grid grid-cols-5 gap-4 mb-6">
-        <Card title="Ventas" value={kpis.ventas} />
-        <Card title="Costo" value={kpis.costo} />
-        <Card title="Utilidad" value={kpis.utilidad} />
+        <Card title="Ventas Netas" value={kpis.ventas} />
+        <Card title="Costo Neto" value={kpis.costo} />
+        <Card title="Utilidad Bruta Neta" value={kpis.utilidad} />
         <Card title="Merma" value={kpis.merma} />
         <Card title="Utilidad Neta" value={kpis.utilidadNeta} />
       </div>
@@ -847,8 +736,9 @@ export default function Reports() {
       <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded mb-6">
         <p className="font-semibold">{reportContextLabel}</p>
         <p className="text-sm mt-1">
-          Los KPIs y reportes se calculan con base en los filtros seleccionados de
-          fecha, sucursal y cajero.
+          Los KPIs y reportes se calculan como ventas netas, descontando
+          cancelaciones completas, devoluciones parciales, devoluciones completas
+          y merma según los filtros seleccionados.
         </p>
       </div>
 
@@ -938,20 +828,24 @@ function TableProducts({
         <thead>
           <tr>
             <th className="text-center">Producto</th>
-            <th className="text-center">Cantidad</th>
-            <th className="text-center">Ventas</th>
-            <th className="text-center">Costo</th>
-            <th className="text-center">Utilidad</th>
+            <th className="text-center">Cantidad Neta</th>
+            <th className="text-center">Venta Neta</th>
+            <th className="text-center">Costo Neto</th>
+            <th className="text-center">Utilidad Neta</th>
           </tr>
         </thead>
 
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i}>
+            <tr key={r.product_id || i}>
               <td className="text-center">{r.product_name}</td>
               <td className="text-center">{r.quantity_sold}</td>
-              <td className="text-center">${Number(r.total_sales || 0).toFixed(2)}</td>
-              <td className="text-center">${Number(r.total_cost || 0).toFixed(2)}</td>
+              <td className="text-center">
+                ${Number(r.total_sales || 0).toFixed(2)}
+              </td>
+              <td className="text-center">
+                ${Number(r.total_cost || 0).toFixed(2)}
+              </td>
               <td
                 className={`text-center ${
                   Number(r.profit || 0) < 0 ? "text-red-600 font-semibold" : ""
@@ -988,21 +882,29 @@ function TableStores({
         <thead>
           <tr>
             <th className="text-center">Sucursal</th>
-            <th className="text-center">Ventas</th>
-            <th className="text-center">Efectivo</th>
-            <th className="text-center">Tarjeta</th>
-            <th className="text-center">USD</th>
+            <th className="text-center">Venta Neta</th>
+            <th className="text-center">Efectivo Neto</th>
+            <th className="text-center">Tarjeta Neta</th>
+            <th className="text-center">USD Neto</th>
           </tr>
         </thead>
 
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i}>
+            <tr key={r.store_id || i}>
               <td className="text-center">{r.store_name}</td>
-              <td className="text-center">${Number(r.total_sales || 0).toFixed(2)}</td>
-              <td className="text-center">${Number(r.total_cash || 0).toFixed(2)}</td>
-              <td className="text-center">${Number(r.total_card || 0).toFixed(2)}</td>
-              <td className="text-center">${Number(r.total_usd || 0).toFixed(4)}</td>
+              <td className="text-center">
+                ${Number(r.total_sales || 0).toFixed(2)}
+              </td>
+              <td className="text-center">
+                ${Number(r.total_cash || 0).toFixed(2)}
+              </td>
+              <td className="text-center">
+                ${Number(r.total_card || 0).toFixed(2)}
+              </td>
+              <td className="text-center">
+                ${Number(r.total_usd || 0).toFixed(4)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -1032,22 +934,30 @@ function TableCashiers({
         <thead>
           <tr>
             <th className="text-center">Cajero</th>
-            <th className="text-center">Ventas</th>
-            <th className="text-center">Efectivo</th>
-            <th className="text-center">Tarjeta</th>
-            <th className="text-center">USD</th>
-            <th className="text-center">Transacciones</th>
+            <th className="text-center">Venta Neta</th>
+            <th className="text-center">Efectivo Neto</th>
+            <th className="text-center">Tarjeta Neta</th>
+            <th className="text-center">USD Neto</th>
+            <th className="text-center">Transacciones Netas</th>
           </tr>
         </thead>
 
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i}>
+            <tr key={`${r.cashier}-${i}`}>
               <td className="text-center">{r.cashier}</td>
-              <td className="text-center">${Number(r.total_sales || 0).toFixed(2)}</td>
-              <td className="text-center">${Number(r.total_cash || 0).toFixed(2)}</td>
-              <td className="text-center">${Number(r.total_card || 0).toFixed(2)}</td>
-              <td className="text-center">${Number(r.total_usd || 0).toFixed(4)}</td>
+              <td className="text-center">
+                ${Number(r.total_sales || 0).toFixed(2)}
+              </td>
+              <td className="text-center">
+                ${Number(r.total_cash || 0).toFixed(2)}
+              </td>
+              <td className="text-center">
+                ${Number(r.total_card || 0).toFixed(2)}
+              </td>
+              <td className="text-center">
+                ${Number(r.total_usd || 0).toFixed(4)}
+              </td>
               <td className="text-center">{r.transactions}</td>
             </tr>
           ))}

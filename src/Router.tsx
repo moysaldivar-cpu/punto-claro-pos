@@ -17,6 +17,7 @@ import CloseCashSession from "@/pages/CloseCashSession";
 import ConteoTurno from "@/pages/ConteoTurno";
 import InventoryLoss from "@/pages/InventoryLoss";
 import Stores from "@/pages/Stores";
+import SaleAdjustments from "@/pages/SaleAdjustments";
 
 /* Configuración placeholder */
 function Configuracion() {
@@ -66,11 +67,11 @@ export default function Router() {
           }
         />
 
-        {/* Registrar merma - cajero, gerente y admin */}
+        {/* Registrar merma - gerente y admin */}
         <Route
           path="/inventory-loss"
           element={
-            <ProtectedRoute allowedRoles={["cajero", "gerente", "admin"]}>
+            <ProtectedRoute allowedRoles={["gerente", "admin"]}>
               <InventoryLoss />
             </ProtectedRoute>
           }
@@ -132,6 +133,16 @@ export default function Router() {
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <SalesHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Cancelaciones y devoluciones - solo admin */}
+        <Route
+          path="/sale-adjustments"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <SaleAdjustments />
             </ProtectedRoute>
           }
         />
