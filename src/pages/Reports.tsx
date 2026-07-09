@@ -66,6 +66,18 @@ type ReportFilters = {
   cashierValue: string;
 };
 
+function formatLocalDateTimeInput(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export default function Reports() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -99,10 +111,8 @@ export default function Reports() {
     const end = new Date(now);
     end.setHours(23, 59, 0, 0);
 
-    const format = (d: Date) => d.toISOString().slice(0, 16);
-
-    setFrom(format(start));
-    setTo(format(end));
+    setFrom(formatLocalDateTimeInput(start));
+    setTo(formatLocalDateTimeInput(end));
 
     loadStores();
   }, []);
