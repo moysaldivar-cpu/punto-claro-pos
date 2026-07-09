@@ -507,7 +507,7 @@ export default function CajeroPOS() {
     if (cart.length === 0) {
       return {
         ok: false,
-        message: "El carrito estÃ¡ vacÃ­o.",
+        message: "El carrito está vacío.",
       };
     }
 
@@ -773,7 +773,7 @@ export default function CajeroPOS() {
 
         if (adminReadOnlyMode) {
           alert(
-            "El usuario administrador estÃ¡ en modo consulta. Para vender, debe operar un cajero con turno abierto."
+            "El usuario administrador está en modo consulta. Para vender, debe operar un cajero con turno abierto."
           );
           return;
         }
@@ -790,7 +790,7 @@ export default function CajeroPOS() {
 
         if (cashWithdrawalBlocked) {
           alert(
-            "Ventas bloqueadas: hay $2,000 MXN o mÃ¡s generados por dinero fÃ­sico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
+            "Ventas bloqueadas: hay $2,000 MXN o más generados por dinero físico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
           );
           return;
         }
@@ -934,7 +934,7 @@ export default function CajeroPOS() {
         );
       } else {
         setAdminNoticeMessage(
-          "Modo administrador: puedes consultar productos y stock de esta sucursal. Las ventas estÃ¡n deshabilitadas para este acceso."
+          "Modo administrador: puedes consultar productos y stock de esta sucursal. Las ventas están deshabilitadas para este acceso."
         );
       }
 
@@ -963,7 +963,7 @@ export default function CajeroPOS() {
       setCashAvailableForWithdrawal(0);
       setCashWithdrawalBlocked(false);
       setSessionConflictMessage(
-        `Esta sucursal ya tiene un turno abierto por ${otherSession.openedByName}. Para operar aquÃ­, primero debe cerrarse ese turno o ingresar con el usuario correspondiente.`
+        `Esta sucursal ya tiene un turno abierto por ${otherSession.openedByName}. Para operar aquí, primero debe cerrarse ese turno o ingresar con el usuario correspondiente.`
       );
       setCheckingSession(false);
       return;
@@ -983,7 +983,7 @@ export default function CajeroPOS() {
 
     if (adminReadOnlyMode) {
       alert(
-        "El usuario administrador estÃ¡ en modo consulta. Para vender, debe operar un cajero con turno abierto."
+        "El usuario administrador está en modo consulta. Para vender, debe operar un cajero con turno abierto."
       );
       return;
     }
@@ -1012,7 +1012,7 @@ export default function CajeroPOS() {
     const otherSession = await fetchOtherOpenSessionInStore();
 
     if (otherSession) {
-      const message = `Esta sucursal ya tiene un turno abierto por ${otherSession.openedByName}. Para operar aquÃ­, primero debe cerrarse ese turno o ingresar con el usuario correspondiente.`;
+      const message = `Esta sucursal ya tiene un turno abierto por ${otherSession.openedByName}. Para operar aquí, primero debe cerrarse ese turno o ingresar con el usuario correspondiente.`;
 
       setSessionConflictMessage(message);
       setOpeningLoading(false);
@@ -1130,7 +1130,7 @@ export default function CajeroPOS() {
   function addProductToCart(product: ProductRow) {
     if (adminReadOnlyMode) {
       alert(
-        "El usuario administrador estÃ¡ en modo consulta. Para vender, debe operar un cajero con turno abierto."
+        "El usuario administrador está en modo consulta. Para vender, debe operar un cajero con turno abierto."
       );
       return;
     }
@@ -1147,7 +1147,7 @@ export default function CajeroPOS() {
 
     if (cashWithdrawalBlocked) {
       alert(
-        "Ventas bloqueadas: hay $2,000 MXN o mÃ¡s generados por dinero fÃ­sico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
+        "Ventas bloqueadas: hay $2,000 MXN o más generados por dinero físico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
       );
       return;
     }
@@ -1299,7 +1299,7 @@ export default function CajeroPOS() {
 
     if (adminReadOnlyMode) {
       alert(
-        "El usuario administrador estÃ¡ en modo consulta. Para vender, debe operar un cajero con turno abierto."
+        "El usuario administrador está en modo consulta. Para vender, debe operar un cajero con turno abierto."
       );
       setIsPaymentOpen(false);
       return;
@@ -1327,10 +1327,10 @@ export default function CajeroPOS() {
 
       if (otherSession) {
         alert(
-          `Esta sucursal ya tiene un turno abierto por ${otherSession.openedByName}. Para operar aquÃ­, primero debe cerrarse ese turno o ingresar con el usuario correspondiente.`
+          `Esta sucursal ya tiene un turno abierto por ${otherSession.openedByName}. Para operar aquí, primero debe cerrarse ese turno o ingresar con el usuario correspondiente.`
         );
       } else {
-        alert("No hay una sesiÃ³n abierta vÃ¡lida para este usuario en esta sucursal.");
+        alert("No hay una sesión abierta válida para este usuario en esta sucursal.");
       }
 
       setIsPaymentOpen(false);
@@ -1357,7 +1357,7 @@ export default function CajeroPOS() {
 
     if (preSaleCashStatus.error) {
       alert(
-        "No se pudo verificar el efectivo disponible para retiro. Por seguridad, la venta no se registrÃ³. Intenta nuevamente."
+        "No se pudo verificar el efectivo disponible para retiro. Por seguridad, la venta no se registró. Intenta nuevamente."
       );
       setIsPaymentOpen(false);
       return;
@@ -1365,7 +1365,7 @@ export default function CajeroPOS() {
 
     if (preSaleCashStatus.blocked) {
       alert(
-        "Ventas bloqueadas: hay $2,000 MXN o mÃ¡s generados por dinero fÃ­sico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
+        "Ventas bloqueadas: hay $2,000 MXN o más generados por dinero físico en caja disponible para retiro. Debe realizarse el retiro antes de continuar."
       );
       setIsPaymentOpen(false);
       return;
@@ -1382,9 +1382,9 @@ export default function CajeroPOS() {
 
     if (availableAfterThisSale >= WITHDRAWAL_THRESHOLD_MXN) {
       alert(
-        `Venta bloqueada: esta venta dejarÃ­a $${availableAfterThisSale.toFixed(
+        `Venta bloqueada: esta venta dejaría $${availableAfterThisSale.toFixed(
           2
-        )} MXN disponibles para retiro, llegando o superando el lÃ­mite de $${WITHDRAWAL_THRESHOLD_MXN.toFixed(
+        )} MXN disponibles para retiro, llegando o superando el límite de $${WITHDRAWAL_THRESHOLD_MXN.toFixed(
           2
         )}. Debe realizarse un retiro antes de continuar.`
       );
@@ -1501,7 +1501,7 @@ export default function CajeroPOS() {
 
     if (adminReadOnlyMode) {
       alert(
-        "El usuario administrador estÃ¡ en modo consulta. Para retirar efectivo, debe operar el usuario con turno abierto."
+        "El usuario administrador está en modo consulta. Para retirar efectivo, debe operar el usuario con turno abierto."
       );
       setIsWithdrawalOpen(false);
       return;
@@ -1520,10 +1520,10 @@ export default function CajeroPOS() {
 
       if (otherSession) {
         alert(
-          `Esta sucursal ya tiene un turno abierto por ${otherSession.openedByName}. Para operar aquÃ­, primero debe cerrarse ese turno o ingresar con el usuario correspondiente.`
+          `Esta sucursal ya tiene un turno abierto por ${otherSession.openedByName}. Para operar aquí, primero debe cerrarse ese turno o ingresar con el usuario correspondiente.`
         );
       } else {
-        alert("No hay una sesiÃ³n abierta vÃ¡lida para este usuario en esta sucursal.");
+        alert("No hay una sesión abierta válida para este usuario en esta sucursal.");
       }
 
       setIsWithdrawalOpen(false);
@@ -1544,7 +1544,7 @@ export default function CajeroPOS() {
     const roundedBreakdownTotal = round2(breakdownTotal || 0);
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      alert("Debe ingresar un monto vÃ¡lido para retiro.");
+      alert("Debe ingresar un monto válido para retiro.");
       return;
     }
 
@@ -1632,7 +1632,7 @@ export default function CajeroPOS() {
   ];
 
   if (checkingSession) {
-    return <div className="p-6 text-2xl">Verificando sesiÃ³n...</div>;
+    return <div className="p-6 text-2xl">Verificando sesión...</div>;
   }
 
   if (!activeStoreId) {
@@ -1689,7 +1689,7 @@ export default function CajeroPOS() {
   return (
     <div className="p-4">
       <h1 className="text-4xl font-bold mb-5">
-        Punto de Venta â€“ {user?.nombre}
+        Punto de Venta - {user?.nombre}
       </h1>
 
       {isAdmin && (
@@ -1747,7 +1747,7 @@ export default function CajeroPOS() {
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-base text-amber-800 font-medium">
           {adminNightPricingTestActive
             ? "Modo prueba nocturna activo: simulando horario 23:30 para validar precios de cerveza. No afecta cajeros, caja ni ventas."
-            : "Horario nocturno activo: la cerveza se cobra por pieza con incremento nocturno y no aplica promociÃ³n ni six."}
+            : "Horario nocturno activo: la cerveza se cobra por pieza con incremento nocturno y no aplica promoción ni six."}
         </div>
       )}
 
@@ -1762,7 +1762,7 @@ export default function CajeroPOS() {
           Ventas bloqueadas temporalmente: ya hay{" "}
           ${cashAvailableForWithdrawal.toFixed(2)} disponibles para retiro,
           superando el umbral de ${WITHDRAWAL_THRESHOLD_MXN.toFixed(2)}{" "}
-          generados por dinero fÃ­sico en caja. Debe realizarse el retiro antes
+          generados por dinero físico en caja. Debe realizarse el retiro antes
           de continuar.
         </div>
       )}
@@ -1772,7 +1772,7 @@ export default function CajeroPOS() {
         cashAvailableForWithdrawal > 0 && (
           <div className="mb-4 rounded border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800 font-medium">
             Disponible para retiro: ${cashAvailableForWithdrawal.toFixed(2)} MXN
-            generados por dinero fÃ­sico en caja.
+            generados por dinero físico en caja.
           </div>
         )}
 
@@ -1862,7 +1862,7 @@ export default function CajeroPOS() {
 
           {filteredProducts.length === 0 && (
             <div className="border rounded p-5 text-gray-500 bg-white">
-              No hay productos para mostrar en esta sucursal o bÃºsqueda.
+              No hay productos para mostrar en esta sucursal o búsqueda.
             </div>
           )}
         </div>
@@ -1875,7 +1875,7 @@ export default function CajeroPOS() {
           <div className="p-4 overflow-y-auto overscroll-contain flex-1 min-h-0">
             {adminReadOnlyMode && (
               <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                Las ventas estÃ¡n deshabilitadas para el usuario administrador.
+                Las ventas están deshabilitadas para el usuario administrador.
               </div>
             )}
 
@@ -2322,7 +2322,7 @@ function TicketModal({
           <div className="text-center text-xs mb-4">OPTICODE LABS</div>
 
           <div className="mb-4 text-center text-xs text-gray-700 leading-relaxed">
-            El reembolso del importe de su compra es vÃ¡lido Ãºnicamente dentro de
+            El reembolso del importe de su compra es válido únicamente dentro de
             las primeras 24 horas posteriores a la fecha de compra.
           </div>
 
@@ -2401,7 +2401,7 @@ function WithdrawalTicketModal({
               <span className="font-semibold">Folio:</span> {ticket.id}
             </div>
             <div>
-              <span className="font-semibold">SesiÃ³n:</span> {ticket.sessionId}
+              <span className="font-semibold">Sesión:</span> {ticket.sessionId}
             </div>
             <div>
               <span className="font-semibold">Fecha:</span>{" "}
@@ -2457,7 +2457,7 @@ function WithdrawalTicketModal({
             )}
 
             <div className="flex justify-between font-semibold pt-2">
-              <span>Disponible despuÃ©s del retiro</span>
+              <span>Disponible después del retiro</span>
               <span>${ticket.availableAfterWithdrawal.toFixed(2)}</span>
             </div>
           </div>
