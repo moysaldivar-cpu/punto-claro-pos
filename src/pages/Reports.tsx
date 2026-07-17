@@ -37,6 +37,7 @@ type CashierReportRow = {
   total_cash: number;
   total_card: number;
   total_usd: number;
+  difference: number;
   transactions: number;
 };
 
@@ -279,6 +280,7 @@ export default function Reports() {
         total_cash: Number(row.total_cash || 0),
         total_card: Number(row.total_card || 0),
         total_usd: Number(row.total_usd || 0),
+        difference: Number(row.difference || 0),
         transactions: Number(row.transactions || 0),
       }))
       .sort((a, b) => b.total_sales - a.total_sales);
@@ -479,9 +481,20 @@ export default function Reports() {
   }
 
   const kpis = useMemo(() => {
-    const ventas = productRows.reduce((a, b) => a + Number(b.total_sales || 0), 0);
-    const costo = productRows.reduce((a, b) => a + Number(b.total_cost || 0), 0);
-    const utilidad = productRows.reduce((a, b) => a + Number(b.profit || 0), 0);
+    const ventas = productRows.reduce(
+      (a, b) => a + Number(b.total_sales || 0),
+      0
+    );
+
+    const costo = productRows.reduce(
+      (a, b) => a + Number(b.total_cost || 0),
+      0
+    );
+
+    const utilidad = productRows.reduce(
+      (a, b) => a + Number(b.profit || 0),
+      0
+    );
 
     const merma = lossRows.reduce(
       (a, b) => a + Number(b.cost || 0) * Number(b.quantity || 0),
@@ -567,6 +580,8 @@ export default function Reports() {
         Efectivo_MXN_Neto: c.total_cash,
         Tarjeta_MXN_Neto: c.total_card,
         USD_Neto: c.total_usd,
+        Diferencia_MXN: c.difference,
+        Estado_Diferencia: getDifferenceLabel(c.difference),
         Transacciones_Netas: c.transactions,
       })),
       ...losses.map((l) => ({
@@ -644,6 +659,8 @@ export default function Reports() {
         Efectivo_MXN_Neto: c.total_cash,
         Tarjeta_MXN_Neto: c.total_card,
         USD_Neto: c.total_usd,
+        Diferencia_MXN: c.difference,
+        Estado_Diferencia: getDifferenceLabel(c.difference),
         Transacciones_Netas: c.transactions,
       }))
     );
@@ -711,6 +728,7 @@ export default function Reports() {
             className="border p-2 rounded"
           >
             <option value="all">Todas</option>
+
             {stores.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -727,6 +745,7 @@ export default function Reports() {
             className="border p-2 rounded"
           >
             <option value="all">Todos</option>
+
             {cashierOptions.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -745,10 +764,12 @@ export default function Reports() {
 
       <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded mb-6">
         <p className="font-semibold">{reportContextLabel}</p>
+
         <p className="text-sm mt-1">
           Los KPIs y reportes se calculan como ventas netas, descontando
           cancelaciones completas, devoluciones parciales, devoluciones completas
-          y merma según los filtros seleccionados.
+          y merma según los filtros seleccionados. La diferencia entre venta y
+          recibido convierte cada pago en USD con el tipo de cambio de su sesión.
         </p>
       </div>
 
@@ -757,20 +778,27 @@ export default function Reports() {
         onConsult={loadProducts}
         onExport={handleExportProducts}
       />
-      {showProducts && <TableProducts rows={productRows} loading={loadingProducts} />}
+
+      {showProducts && (
+        <TableProducts rows={productRows} loading={loadingProducts} />
+      )}
 
       <ReportHeader
         title="Ventas por Sucursal"
         onConsult={loadStoresReport}
         onExport={handleExportStores}
       />
-      {showStores && <TableStores rows={storeRows} loading={loadingStores} />}
+
+      {showStores && (
+        <TableStores rows={storeRows} loading={loadingStores} />
+      )}
 
       <ReportHeader
         title="Ventas por Cajero"
         onConsult={loadCashiersReport}
         onExport={handleExportCashiers}
       />
+
       {showCashiers && (
         <TableCashiers rows={cashierRows} loading={loadingCashiers} />
       )}
@@ -780,6 +808,7 @@ export default function Reports() {
         onConsult={loadLossReport}
         onExport={handleExportLoss}
       />
+
       {showLoss && <TableLoss rows={lossRows} loading={loadingLoss} />}
     </div>
   );
@@ -833,7 +862,7 @@ function TableProducts({
   }
 
   return (
-    <div className="bg-white p-4 rounded shadow mb-6">
+    <div className="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr>
@@ -850,15 +879,20 @@ function TableProducts({
             <tr key={r.product_id || i}>
               <td className="text-center">{r.product_name}</td>
               <td className="text-center">{r.quantity_sold}</td>
+
               <td className="text-center">
                 ${Number(r.total_sales || 0).toFixed(2)}
               </td>
+
               <td className="text-center">
                 ${Number(r.total_cost || 0).toFixed(2)}
               </td>
+
               <td
                 className={`text-center ${
-                  Number(r.profit || 0) < 0 ? "text-red-600 font-semibold" : ""
+                  Number(r.profit || 0) < 0
+                    ? "text-red-600 font-semibold"
+                    : ""
                 }`}
               >
                 ${Number(r.profit || 0).toFixed(2)}
@@ -887,7 +921,7 @@ function TableStores({
   }
 
   return (
-    <div className="bg-white p-4 rounded shadow mb-6">
+    <div className="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr>
@@ -903,15 +937,19 @@ function TableStores({
           {rows.map((r, i) => (
             <tr key={r.store_id || i}>
               <td className="text-center">{r.store_name}</td>
+
               <td className="text-center">
                 ${Number(r.total_sales || 0).toFixed(2)}
               </td>
+
               <td className="text-center">
                 ${Number(r.total_cash || 0).toFixed(2)}
               </td>
+
               <td className="text-center">
                 ${Number(r.total_card || 0).toFixed(2)}
               </td>
+
               <td className="text-center">
                 ${Number(r.total_usd || 0).toFixed(4)}
               </td>
@@ -939,7 +977,7 @@ function TableCashiers({
   }
 
   return (
-    <div className="bg-white p-4 rounded shadow mb-6">
+    <div className="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr>
@@ -948,6 +986,9 @@ function TableCashiers({
             <th className="text-center">Efectivo Neto</th>
             <th className="text-center">Tarjeta Neta</th>
             <th className="text-center">USD Neto</th>
+            <th className="text-center">
+              Diferencia venta vs. recibido
+            </th>
             <th className="text-center">Transacciones Netas</th>
           </tr>
         </thead>
@@ -956,18 +997,31 @@ function TableCashiers({
           {rows.map((r, i) => (
             <tr key={`${r.cashier}-${i}`}>
               <td className="text-center">{r.cashier}</td>
+
               <td className="text-center">
                 ${Number(r.total_sales || 0).toFixed(2)}
               </td>
+
               <td className="text-center">
                 ${Number(r.total_cash || 0).toFixed(2)}
               </td>
+
               <td className="text-center">
                 ${Number(r.total_card || 0).toFixed(2)}
               </td>
+
               <td className="text-center">
                 ${Number(r.total_usd || 0).toFixed(4)}
               </td>
+
+              <td
+                className={`text-center font-semibold ${getDifferenceClass(
+                  r.difference
+                )}`}
+              >
+                {getDifferenceLabel(r.difference)}
+              </td>
+
               <td className="text-center">{r.transactions}</td>
             </tr>
           ))}
@@ -993,7 +1047,7 @@ function TableLoss({
   }
 
   return (
-    <div className="bg-white p-4 rounded shadow mb-6">
+    <div className="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr>
@@ -1012,6 +1066,7 @@ function TableLoss({
               <td className="text-center">{r.quantity}</td>
               <td className="text-center">{r.reason}</td>
               <td className="text-center">{r.store_name}</td>
+
               <td className="text-center">
                 {new Date(r.created_at).toLocaleString()}
               </td>
@@ -1021,6 +1076,34 @@ function TableLoss({
       </table>
     </div>
   );
+}
+
+function getDifferenceLabel(value: number) {
+  const difference = Number(value || 0);
+
+  if (difference > 0) {
+    return `Faltante $${difference.toFixed(2)}`;
+  }
+
+  if (difference < 0) {
+    return `Sobrante $${Math.abs(difference).toFixed(2)}`;
+  }
+
+  return "Cuadrado $0.00";
+}
+
+function getDifferenceClass(value: number) {
+  const difference = Number(value || 0);
+
+  if (difference > 0) {
+    return "text-red-600";
+  }
+
+  if (difference < 0) {
+    return "text-blue-600";
+  }
+
+  return "text-green-600";
 }
 
 function Card({ title, value }: { title: string; value: number }) {
