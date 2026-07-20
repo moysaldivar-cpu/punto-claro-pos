@@ -524,14 +524,107 @@ function TicketModal({
 
   const cambioOriginal = totalPagadoOriginal - Number(ticket.sale.total || 0);
 
+  const displayFolio =
+    String(ticket.sale.folio || "").trim() ||
+    String(ticket.sale.id || "")
+      .replace(/-/g, "")
+      .slice(0, 8)
+      .toUpperCase() ||
+    "N/A";
+
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 p-4 overflow-y-auto">
-      <div className="min-h-full flex items-start justify-center py-6">
-        <div className="bg-white w-full max-w-md rounded shadow-lg p-6 relative overflow-hidden">
+    <div className="sales-history-ticket-print-overlay fixed inset-0 bg-black/50 z-50 p-4 overflow-y-auto">
+      <style>{`
+        @media print {
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
+
+          html,
+          body {
+            width: 58mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .sales-history-ticket-print-overlay,
+          .sales-history-ticket-print-overlay * {
+            visibility: visible !important;
+          }
+
+          .sales-history-ticket-print-overlay {
+            position: fixed !important;
+            inset: 0 auto auto 0 !important;
+            display: block !important;
+            width: 58mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            background: white !important;
+          }
+
+          .sales-history-ticket-print-frame {
+            display: block !important;
+            width: 58mm !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .sales-history-ticket-print-paper {
+            box-sizing: border-box !important;
+            width: 58mm !important;
+            max-width: 58mm !important;
+            min-width: 58mm !important;
+            margin: 0 !important;
+            padding: 3mm 2.5mm !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            color: black !important;
+            background: white !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
+          }
+
+          .sales-history-ticket-print-paper img {
+            max-width: 100% !important;
+          }
+
+          .sales-history-ticket-print-item {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .sales-history-ticket-refund-notice {
+            border: 1px solid black !important;
+            padding: 2mm !important;
+            color: black !important;
+            font-size: 11px !important;
+            line-height: 1.35 !important;
+            font-weight: 700 !important;
+            text-align: center !important;
+          }
+
+          .sales-history-ticket-screen-only {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      <div className="sales-history-ticket-print-frame min-h-full flex items-start justify-center py-6">
+        <div className="sales-history-ticket-print-paper bg-white w-full max-w-md rounded shadow-lg p-6 relative overflow-hidden">
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-3 top-3 z-20 rounded-full border bg-white px-3 py-1 text-sm font-semibold hover:bg-gray-50"
+            className="sales-history-ticket-screen-only absolute right-3 top-3 z-20 rounded-full border bg-white px-3 py-1 text-sm font-semibold hover:bg-gray-50"
           >
             Cerrar
           </button>
@@ -572,7 +665,7 @@ function TicketModal({
             <div className="mb-3 text-sm space-y-1">
               <div>
                 <span className="font-semibold">Folio:</span>{" "}
-                {ticket.sale.folio || "N/A"}
+                {displayFolio}
               </div>
 
               <div>
@@ -592,7 +685,7 @@ function TicketModal({
               {ticket.items.map((item, index) => (
                 <div
                   key={`${item.sale_item_id}-${item.product_id}-${index}`}
-                  className="mb-2 text-sm"
+                  className="sales-history-ticket-print-item mb-2 text-sm"
                 >
                   <div className="flex justify-between items-center gap-3">
                     <div>
@@ -685,18 +778,13 @@ function TicketModal({
 
             <div className="text-center text-xs mb-3">OPTICODE LABS</div>
 
-            <div className="mb-3 text-center text-xs text-gray-700 leading-relaxed">
+            <div className="sales-history-ticket-refund-notice mb-3 text-center text-sm font-semibold text-black leading-snug border border-black rounded p-2">
               {isAdjusted
                 ? "Ticket ajustado administrativamente. Conserve este comprobante para cualquier aclaración."
                 : "El reembolso del importe de su compra es válido únicamente dentro de las primeras 24 horas posteriores a la fecha de compra."}
             </div>
 
-            <div className="mb-3 text-center text-xs text-gray-500">
-              Atajo: F1 o Ctrl + Alt + I para imprimir. También puedes cerrar con
-              Escape.
-            </div>
-
-            <div className="flex gap-2">
+            <div className="sales-history-ticket-screen-only flex gap-2">
               <button
                 className="bg-black text-white px-4 py-2 rounded w-full"
                 onClick={() => window.print()}

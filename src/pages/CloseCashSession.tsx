@@ -747,6 +747,12 @@ function CloseTicketModal({
   const hasEmptyBoxes =
     ticket.emptyCoronaBoxes > 0 || ticket.emptyHeinekenBoxes > 0;
 
+  const displaySession =
+    String(ticket.sessionId || "")
+      .replace(/-/g, "")
+      .slice(0, 8)
+      .toUpperCase() || "N/A";
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isPrintShortcut =
@@ -769,8 +775,69 @@ function CloseTicketModal({
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-md rounded shadow-lg p-6 relative overflow-hidden">
+    <div className="close-ticket-print-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <style>{`
+        @media print {
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
+
+          html,
+          body {
+            width: 58mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .close-ticket-print-overlay,
+          .close-ticket-print-overlay * {
+            visibility: visible !important;
+          }
+
+          .close-ticket-print-overlay {
+            position: fixed !important;
+            inset: 0 auto auto 0 !important;
+            display: block !important;
+            width: 58mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          .close-ticket-print-paper {
+            box-sizing: border-box !important;
+            width: 58mm !important;
+            max-width: 58mm !important;
+            min-width: 58mm !important;
+            margin: 0 !important;
+            padding: 3mm 2.5mm !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            color: black !important;
+            background: white !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
+          }
+
+          .close-ticket-print-paper img {
+            max-width: 100% !important;
+          }
+
+          .close-ticket-screen-only {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      <div className="close-ticket-print-paper bg-white w-full max-w-md rounded shadow-lg p-6 relative overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <img
             src={beerZoneLogo}
@@ -792,7 +859,7 @@ function CloseTicketModal({
 
           <div className="mb-4 text-sm space-y-1">
             <div>
-              <span className="font-semibold">Sesión:</span> {ticket.sessionId}
+              <span className="font-semibold">Sesión:</span> {displaySession}
             </div>
             <div>
               <span className="font-semibold">Fecha:</span>{" "}
@@ -878,11 +945,7 @@ function CloseTicketModal({
 
           <div className="text-center text-xs mb-4">OPTICODE LABS</div>
 
-          <div className="mb-3 text-center text-xs text-gray-500">
-            Atajo: F1 o Ctrl + Alt + I para imprimir
-          </div>
-
-          <div className="flex gap-2">
+          <div className="close-ticket-screen-only flex gap-2">
             <button
               className="bg-black text-white px-4 py-2 rounded w-full"
               onClick={() => window.print()}

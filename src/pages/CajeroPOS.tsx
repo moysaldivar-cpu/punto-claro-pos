@@ -1822,7 +1822,7 @@ export default function CajeroPOS() {
       <div className="mb-4 text-sm text-gray-500">
         {adminReadOnlyMode
           ? "Modo administrador: consulta de productos y stock por sucursal."
-          : "Atajos: F12 o Ctrl + Alt + C para cobro | F1 o Ctrl + Alt + I para imprimir ticket"}
+          : "Atajo: F12 o Ctrl + Alt + C para cobro"}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start">
@@ -2221,9 +2221,86 @@ function TicketModal({
 
   const cambio = totalPagado - subtotalItems;
 
+  const displayFolio =
+    String(ticket.sale?.folio || "").trim() ||
+    String(ticket.sale?.id || "")
+      .replace(/-/g, "")
+      .slice(0, 8)
+      .toUpperCase() ||
+    "N/A";
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-md rounded shadow-lg p-6 relative overflow-hidden">
+    <div className="ticket-print-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <style>{`
+        @media print {
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
+
+          html,
+          body {
+            width: 58mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .ticket-print-overlay,
+          .ticket-print-overlay * {
+            visibility: visible !important;
+          }
+
+          .ticket-print-overlay {
+            position: fixed !important;
+            inset: 0 auto auto 0 !important;
+            display: block !important;
+            width: 58mm !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
+          }
+
+          .ticket-print-paper {
+            box-sizing: border-box !important;
+            width: 58mm !important;
+            max-width: 58mm !important;
+            min-width: 58mm !important;
+            margin: 0 !important;
+            padding: 3mm 2.5mm !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            color: black !important;
+            background: white !important;
+            font-family: Arial, sans-serif !important;
+          }
+
+          .ticket-print-paper img {
+            max-width: 100% !important;
+          }
+
+          .ticket-screen-only {
+            display: none !important;
+          }
+
+          .ticket-refund-notice {
+            color: black !important;
+            font-size: 11px !important;
+            line-height: 1.35 !important;
+            font-weight: 700 !important;
+            border: 1px solid black !important;
+            padding: 2mm !important;
+            margin: 3mm 0 0 !important;
+          }
+        }
+      `}</style>
+
+      <div className="ticket-print-paper bg-white w-full max-w-md rounded shadow-lg p-6 relative overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <img
             src={beerZoneLogo}
@@ -2245,7 +2322,7 @@ function TicketModal({
           <div className="mb-4 text-sm space-y-1">
             <div>
               <span className="font-semibold">Folio:</span>{" "}
-              {ticket.sale?.id || "N/A"}
+              {displayFolio}
             </div>
             <div>
               <span className="font-semibold">Fecha:</span>{" "}
@@ -2321,16 +2398,12 @@ function TicketModal({
 
           <div className="text-center text-xs mb-4">OPTICODE LABS</div>
 
-          <div className="mb-4 text-center text-xs text-gray-700 leading-relaxed">
+          <div className="ticket-refund-notice mb-4 text-center text-sm font-semibold text-black leading-snug border border-black rounded p-2">
             El reembolso del importe de su compra es válido únicamente dentro de
             las primeras 24 horas posteriores a la fecha de compra.
           </div>
 
-          <div className="mb-3 text-center text-xs text-gray-500">
-            Atajo: F1 o Ctrl + Alt + I para imprimir
-          </div>
-
-          <div className="flex gap-2">
+          <div className="ticket-screen-only flex gap-2">
             <button
               className="bg-black text-white px-4 py-2 rounded w-full"
               onClick={() => window.print()}
@@ -2374,9 +2447,82 @@ function WithdrawalTicketModal({
     };
   }, []);
 
+  const displayWithdrawalFolio =
+    String(ticket.id || "")
+      .replace(/-/g, "")
+      .slice(0, 8)
+      .toUpperCase() || "N/A";
+
+  const displaySession =
+    String(ticket.sessionId || "")
+      .replace(/-/g, "")
+      .slice(0, 8)
+      .toUpperCase() || "N/A";
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-md rounded shadow-lg p-6 relative overflow-hidden">
+    <div className="withdrawal-ticket-print-overlay fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <style>{`
+        @media print {
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
+
+          html,
+          body {
+            width: 58mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .withdrawal-ticket-print-overlay,
+          .withdrawal-ticket-print-overlay * {
+            visibility: visible !important;
+          }
+
+          .withdrawal-ticket-print-overlay {
+            position: fixed !important;
+            inset: 0 auto auto 0 !important;
+            display: block !important;
+            width: 58mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          .withdrawal-ticket-print-paper {
+            box-sizing: border-box !important;
+            width: 58mm !important;
+            max-width: 58mm !important;
+            min-width: 58mm !important;
+            margin: 0 !important;
+            padding: 3mm 2.5mm !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            color: black !important;
+            background: white !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
+          }
+
+          .withdrawal-ticket-print-paper img {
+            max-width: 100% !important;
+          }
+
+          .withdrawal-ticket-screen-only {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      <div className="withdrawal-ticket-print-paper bg-white w-full max-w-md rounded shadow-lg p-6 relative overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <img
             src={beerZoneLogo}
@@ -2398,10 +2544,12 @@ function WithdrawalTicketModal({
 
           <div className="mb-4 text-sm space-y-1">
             <div>
-              <span className="font-semibold">Folio:</span> {ticket.id}
+              <span className="font-semibold">Folio:</span>{" "}
+              {displayWithdrawalFolio}
             </div>
             <div>
-              <span className="font-semibold">Sesión:</span> {ticket.sessionId}
+              <span className="font-semibold">Sesión:</span>{" "}
+              {displaySession}
             </div>
             <div>
               <span className="font-semibold">Fecha:</span>{" "}
@@ -2464,11 +2612,7 @@ function WithdrawalTicketModal({
 
           <div className="text-center text-xs mb-4">OPTICODE LABS</div>
 
-          <div className="mb-3 text-center text-xs text-gray-500">
-            Atajo: F1 o Ctrl + Alt + I para imprimir
-          </div>
-
-          <div className="flex gap-2">
+          <div className="withdrawal-ticket-screen-only flex gap-2">
             <button
               className="bg-black text-white px-4 py-2 rounded w-full"
               onClick={() => window.print()}
