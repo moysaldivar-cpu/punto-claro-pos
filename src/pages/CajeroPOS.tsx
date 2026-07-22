@@ -2190,6 +2190,33 @@ function TicketModal({
   ticket: TicketData;
   onClose: () => void;
 }) {
+  const onCloseRef = useRef(onClose);
+  const automaticPrintStartedRef = useRef(false);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      onCloseRef.current();
+    };
+
+    window.addEventListener("afterprint", handleAfterPrint);
+
+    const automaticPrintTimer = window.setTimeout(() => {
+      if (automaticPrintStartedRef.current) return;
+
+      automaticPrintStartedRef.current = true;
+      window.print();
+    }, 350);
+
+    return () => {
+      window.clearTimeout(automaticPrintTimer);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isPrintShortcut =
@@ -2198,6 +2225,7 @@ function TicketModal({
 
       if (isPrintShortcut) {
         event.preventDefault();
+        automaticPrintStartedRef.current = true;
         window.print();
       }
     };
