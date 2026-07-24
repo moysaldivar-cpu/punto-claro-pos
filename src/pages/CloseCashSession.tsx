@@ -55,7 +55,9 @@ type CloseTicketData = {
   sessionId: string;
   closedAt: string;
   exchangeRate: number;
+  expectedCash: number;
   realCash: number;
+  cashDifference: number;
   realCard: number;
   realUsd: number;
   declaredGeneral: number;
@@ -288,14 +290,17 @@ export default function CloseCashSession() {
   const expectedUsd = totals?.total_usd || 0;
   const expectedGeneral = totals?.total_general_mxn || 0;
 
-  const cashDifference = realCashNumber - expectedCash;
-  const cardDifference = realCardNumber - expectedCard;
-  const usdDifference = realUsdNumber - expectedUsd;
+  const cashDifference = Number((realCashNumber - expectedCash).toFixed(2));
+  const cardDifference = Number((realCardNumber - expectedCard).toFixed(2));
+  const usdDifference = Number((realUsdNumber - expectedUsd).toFixed(4));
 
-  const declaredGeneral =
-    realCashNumber + realCardNumber + realUsdNumber * exchangeRate;
+  const declaredGeneral = Number(
+    (realCashNumber + realCardNumber + realUsdNumber * exchangeRate).toFixed(2)
+  );
 
-  const generalDifference = declaredGeneral - expectedGeneral;
+  const generalDifference = Number(
+    (declaredGeneral - expectedGeneral).toFixed(2)
+  );
 
   function money(value: number) {
     return `$${Number(value || 0).toFixed(2)}`;
@@ -309,6 +314,20 @@ export default function CloseCashSession() {
     if (value === 0) return "text-green-600";
     if (value > 0) return "text-blue-600";
     return "text-red-600";
+  }
+
+  function cashDifferenceLabel(value: number) {
+    const difference = Number(value.toFixed(2));
+
+    if (difference === 0) {
+      return "Cuadrado $0.00";
+    }
+
+    if (difference > 0) {
+      return `Sobrante ${money(difference)}`;
+    }
+
+    return `Faltante ${money(Math.abs(difference))}`;
   }
 
   function capturedAmountClass(value: number) {
@@ -417,7 +436,9 @@ export default function CloseCashSession() {
       sessionId,
       closedAt: new Date().toISOString(),
       exchangeRate,
+      expectedCash: Number(expectedCash.toFixed(2)),
       realCash: realCashNumber,
+      cashDifference,
       realCard: realCardNumber,
       realUsd: realUsdNumber,
       declaredGeneral: Number(declaredGeneral.toFixed(2)),
@@ -621,9 +642,9 @@ export default function CloseCashSession() {
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span>Diferencia efectivo</span>
+                    <span>Resultado de efectivo</span>
                     <span className={diffClass(cashDifference)}>
-                      {money(cashDifference)}
+                      {cashDifferenceLabel(cashDifference)}
                     </span>
                   </div>
 
@@ -742,6 +763,20 @@ function CloseTicketModal({
 
   function usd(value: number) {
     return `$${Number(value || 0).toFixed(4)}`;
+  }
+
+  function cashDifferenceLabel(value: number) {
+    const difference = Number(value.toFixed(2));
+
+    if (difference === 0) {
+      return "Cuadrado $0.00";
+    }
+
+    if (difference > 0) {
+      return `Sobrante ${money(difference)}`;
+    }
+
+    return `Faltante ${money(Math.abs(difference))}`;
   }
 
   const hasEmptyBoxes =
@@ -892,8 +927,18 @@ function CloseTicketModal({
 
           <div className="space-y-1 text-sm mb-4">
             <div className="flex justify-between">
-              <span>Efectivo</span>
+              <span>Efectivo esperado</span>
+              <span>{money(ticket.expectedCash)}</span>
+            </div>
+
+            <div className="flex justify-between">
+              <span>Efectivo declarado</span>
               <span>{money(ticket.realCash)}</span>
+            </div>
+
+            <div className="flex justify-between font-bold pt-2">
+              <span>Resultado efectivo</span>
+              <span>{cashDifferenceLabel(ticket.cashDifference)}</span>
             </div>
 
             <div className="flex justify-between">
