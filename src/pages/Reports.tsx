@@ -60,6 +60,20 @@ type LossRow = {
   cost: number;
 };
 
+type InventoryStatus = "Disponible" | "Bajo mínimo" | "Sin stock";
+
+type InventoryReportRow = {
+  id: string;
+  product_id: string;
+  store_id: string;
+  product_name: string;
+  sku: string;
+  store_name: string;
+  stock: number;
+  min_stock: number;
+  status: InventoryStatus;
+};
+
 type ReportFilters = {
   fromValue: string;
   toValue: string;
@@ -92,16 +106,19 @@ export default function Reports() {
   const [storeRows, setStoreRows] = useState<StoreReportRow[]>([]);
   const [cashierRows, setCashierRows] = useState<CashierReportRow[]>([]);
   const [lossRows, setLossRows] = useState<LossRow[]>([]);
+  const [inventoryRows, setInventoryRows] = useState<InventoryReportRow[]>([]);
 
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [loadingStores, setLoadingStores] = useState(false);
   const [loadingCashiers, setLoadingCashiers] = useState(false);
   const [loadingLoss, setLoadingLoss] = useState(false);
+  const [loadingInventory, setLoadingInventory] = useState(false);
 
   const [showProducts, setShowProducts] = useState(false);
   const [showStores, setShowStores] = useState(false);
   const [showCashiers, setShowCashiers] = useState(false);
   const [showLoss, setShowLoss] = useState(false);
+  const [showInventory, setShowInventory] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -372,6 +389,65 @@ export default function Reports() {
     });
   }
 
+  async function fetchInventoryRows(
+    storeIdValue: string
+  ): Promise<InventoryReportRow[]> {
+    let query = supabase.from("inventory").select(`
+        id,
+        product_id,
+        store_id,
+        stock,
+        min_stock,
+        products!inner (
+          name,
+          sku
+        ),
+        pos_stores (
+          name
+        )
+      `);
+
+    if (storeIdValue !== "all") {
+      query = query.eq("store_id", storeIdValue);
+    }
+
+    const { data, error } = await query.order("store_id", {
+      ascending: true,
+    });
+
+    if (error) {
+      console.error("Error loading inventory report:", error);
+      return [];
+    }
+
+    return ((data || []) as any[])
+      .map((row) => {
+        const stock = Number(row.stock || 0);
+        const minStock = Number(row.min_stock || 0);
+
+        return {
+          id: String(row.id || ""),
+          product_id: String(row.product_id || ""),
+          store_id: String(row.store_id || ""),
+          product_name: String(row.products?.name || "Producto").trim(),
+          sku: String(row.products?.sku || "").trim(),
+          store_name: String(row.pos_stores?.name || "Sucursal").trim(),
+          stock,
+          min_stock: minStock,
+          status: getInventoryStatus(stock, minStock),
+        };
+      })
+      .sort((a, b) => {
+        const storeComparison = a.store_name.localeCompare(b.store_name);
+
+        if (storeComparison !== 0) {
+          return storeComparison;
+        }
+
+        return a.product_name.localeCompare(b.product_name);
+      });
+  }
+
   async function loadKpisData() {
     if (!from || !to) return;
 
@@ -480,6 +556,21 @@ export default function Reports() {
     setLoadingLoss(false);
   }
 
+  async function loadInventoryReport() {
+    if (showInventory) {
+      setShowInventory(false);
+      return;
+    }
+
+    setLoadingInventory(true);
+
+    const rows = await fetchInventoryRows(storeFilter);
+
+    setInventoryRows(rows);
+    setShowInventory(true);
+    setLoadingInventory(false);
+  }
+
   const kpis = useMemo(() => {
     const ventas = productRows.reduce(
       (a, b) => a + Number(b.total_sales || 0),
@@ -530,31 +621,33 @@ export default function Reports() {
   async function handleExport() {
     if (!from || !to) return;
 
-    const [products, storesReport, cashiersReport, losses] = await Promise.all([
-      fetchProductRows({
-        fromValue: from,
-        toValue: to,
-        storeIdValue: storeFilter,
-        cashierValue: cashierFilter,
-      }),
-      fetchStoreReportRows({
-        fromValue: from,
-        toValue: to,
-        storeIdValue: storeFilter,
-        cashierValue: cashierFilter,
-      }),
-      fetchCashierReportRows({
-        fromValue: from,
-        toValue: to,
-        storeIdValue: storeFilter,
-        cashierValue: cashierFilter,
-      }),
-      fetchLossRows({
-        fromValue: from,
-        toValue: to,
-        storeIdValue: storeFilter,
-      }),
-    ]);
+    const [products, storesReport, cashiersReport, losses, inventory] =
+      await Promise.all([
+        fetchProductRows({
+          fromValue: from,
+          toValue: to,
+          storeIdValue: storeFilter,
+          cashierValue: cashierFilter,
+        }),
+        fetchStoreReportRows({
+          fromValue: from,
+          toValue: to,
+          storeIdValue: storeFilter,
+          cashierValue: cashierFilter,
+        }),
+        fetchCashierReportRows({
+          fromValue: from,
+          toValue: to,
+          storeIdValue: storeFilter,
+          cashierValue: cashierFilter,
+        }),
+        fetchLossRows({
+          fromValue: from,
+          toValue: to,
+          storeIdValue: storeFilter,
+        }),
+        fetchInventoryRows(storeFilter),
+      ]);
 
     const rows = [
       ...products.map((p) => ({
@@ -591,6 +684,15 @@ export default function Reports() {
         Motivo: l.reason,
         Sucursal: l.store_name,
         Fecha: new Date(l.created_at).toLocaleString(),
+      })),
+      ...inventory.map((item) => ({
+        Seccion: "Inventario",
+        Sucursal: item.store_name,
+        Producto: item.product_name,
+        SKU: item.sku,
+        Stock_Actual: item.stock,
+        Stock_Minimo: item.min_stock,
+        Estado: item.status,
       })),
     ];
 
@@ -687,6 +789,22 @@ export default function Reports() {
     );
   }
 
+  async function handleExportInventory() {
+    const rows = await fetchInventoryRows(storeFilter);
+
+    downloadExcel(
+      "reporte_inventario.xlsx",
+      rows.map((item) => ({
+        Sucursal: item.store_name,
+        Producto: item.product_name,
+        SKU: item.sku,
+        Stock_Actual: item.stock,
+        Stock_Minimo: item.min_stock,
+        Estado: item.status,
+      }))
+    );
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Reportes</h1>
@@ -770,6 +888,8 @@ export default function Reports() {
           cancelaciones completas, devoluciones parciales, devoluciones completas
           y merma según los filtros seleccionados. La diferencia entre venta y
           recibido convierte cada pago en USD con el tipo de cambio de su sesión.
+          El reporte de inventario muestra existencias actuales y usa únicamente
+          el filtro de sucursal.
         </p>
       </div>
 
@@ -810,6 +930,16 @@ export default function Reports() {
       />
 
       {showLoss && <TableLoss rows={lossRows} loading={loadingLoss} />}
+
+      <ReportHeader
+        title="Reporte de Inventario"
+        onConsult={loadInventoryReport}
+        onExport={handleExportInventory}
+      />
+
+      {showInventory && (
+        <TableInventory rows={inventoryRows} loading={loadingInventory} />
+      )}
     </div>
   );
 }
@@ -1076,6 +1206,99 @@ function TableLoss({
       </table>
     </div>
   );
+}
+
+function TableInventory({
+  rows,
+  loading,
+}: {
+  rows: InventoryReportRow[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="bg-white p-4 rounded shadow mb-6">
+        <p>Cargando...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
+      <p className="text-sm text-gray-500 mb-4">
+        Existencias actuales. Este reporte usa únicamente el filtro de sucursal;
+        no depende de la fecha ni del cajero.
+      </p>
+
+      {rows.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          No hay registros de inventario para la sucursal seleccionada.
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="text-center">Sucursal</th>
+              <th className="text-center">Producto</th>
+              <th className="text-center">SKU</th>
+              <th className="text-center">Stock actual</th>
+              <th className="text-center">Stock mínimo</th>
+              <th className="text-center">Estado</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td className="text-center">{r.store_name}</td>
+                <td className="text-center">{r.product_name}</td>
+                <td className="text-center">{r.sku || "—"}</td>
+                <td className="text-center">{r.stock}</td>
+                <td className="text-center">{r.min_stock}</td>
+                <td
+                  className={`text-center font-semibold ${getInventoryStatusClass(
+                    r.status
+                  )}`}
+                >
+                  {r.status}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function getInventoryStatus(
+  stockValue: number,
+  minStockValue: number
+): InventoryStatus {
+  const stock = Number(stockValue || 0);
+  const minStock = Number(minStockValue || 0);
+
+  if (stock <= 0) {
+    return "Sin stock";
+  }
+
+  if (stock <= minStock) {
+    return "Bajo mínimo";
+  }
+
+  return "Disponible";
+}
+
+function getInventoryStatusClass(status: InventoryStatus) {
+  if (status === "Sin stock") {
+    return "text-red-600";
+  }
+
+  if (status === "Bajo mínimo") {
+    return "text-amber-600";
+  }
+
+  return "text-green-600";
 }
 
 function getDifferenceLabel(value: number) {
