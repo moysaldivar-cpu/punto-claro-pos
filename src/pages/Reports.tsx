@@ -886,8 +886,7 @@ export default function Reports() {
         <p className="text-sm mt-1">
           Los KPIs y reportes se calculan como ventas netas, descontando
           cancelaciones completas, devoluciones parciales, devoluciones completas
-          y merma según los filtros seleccionados. La diferencia entre venta y
-          recibido convierte cada pago en USD con el tipo de cambio de su sesión.
+          y merma según los filtros seleccionados. La diferencia física de cierre compara el efectivo declarado por el cajero contra el efectivo esperado de la sesión.
           El reporte de inventario muestra existencias actuales y usa únicamente
           el filtro de sucursal.
         </p>
@@ -1117,7 +1116,7 @@ function TableCashiers({
             <th className="text-center">Tarjeta Neta</th>
             <th className="text-center">USD Neto</th>
             <th className="text-center">
-              Diferencia venta vs. recibido
+              Diferencia física de cierre
             </th>
             <th className="text-center">Transacciones Netas</th>
           </tr>
