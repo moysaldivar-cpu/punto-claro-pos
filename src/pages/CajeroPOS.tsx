@@ -515,7 +515,7 @@ export default function CajeroPOS() {
 
     const { data, error } = await supabase
       .from("inventory")
-      .select("product_id, stock")
+      .select("product_id, stock, is_active")
       .eq("store_id", activeStoreId)
       .in("product_id", productIds);
 
@@ -527,14 +527,33 @@ export default function CajeroPOS() {
       };
     }
 
-    const latestStockMap = new Map<string, number>();
+    const latestInventoryMap = new Map<
+      string,
+      { stock: number; is_active: boolean }
+    >();
 
-    for (const row of data as { product_id: string; stock: number }[]) {
-      latestStockMap.set(row.product_id, Number(row.stock || 0));
+    for (const row of data as {
+      product_id: string;
+      stock: number;
+      is_active: boolean;
+    }[]) {
+      latestInventoryMap.set(row.product_id, {
+        stock: Number(row.stock || 0),
+        is_active: Boolean(row.is_active),
+      });
     }
 
     for (const item of cart) {
-      const latestStock = Number(latestStockMap.get(item.product_id) || 0);
+      const latestInventory = latestInventoryMap.get(item.product_id);
+
+      if (!latestInventory || !latestInventory.is_active) {
+        return {
+          ok: false,
+          message: `${item.name} ya no está disponible en esta sucursal. Retíralo del carrito antes de registrar la venta.`,
+        };
+      }
+
+      const latestStock = latestInventory.stock;
 
       if (item.quantity > latestStock) {
         return {
@@ -1066,7 +1085,8 @@ export default function CajeroPOS() {
     const { data: inv, error: invError } = await supabase
       .from("inventory")
       .select("product_id, stock")
-      .eq("store_id", activeStoreId);
+      .eq("store_id", activeStoreId)
+      .eq("is_active", true);
 
     const { data: prods, error: prodsError } = await supabase
       .from("products")
