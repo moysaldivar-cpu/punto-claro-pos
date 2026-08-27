@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect } from "react";
+﻿import { createContext, useContext, useState, useEffect } from "react";
+import { logoutPosAuth } from "@/lib/posAuth";
 
 type PosUser = {
   id: string;
@@ -6,7 +7,7 @@ type PosUser = {
   rol: "admin" | "gerente" | "cajero";
   store_id: string | null;
 
-  // 👇 Compatibilidad con código viejo
+  // Compatibilidad con codigo viejo
   role?: string;
   email?: string;
 };
@@ -14,17 +15,17 @@ type PosUser = {
 type ContextType = {
   user: PosUser | null;
   loading: boolean;
-  logout: () => void;
+  logout: () => Promise<void>;
 
-  // 👇 Para que no truene código viejo
-  signOut?: () => void;
+  // Para que no truene codigo viejo
+  signOut?: () => Promise<void>;
 };
 
 const PosAuthContext = createContext<ContextType>({
   user: null,
   loading: true,
-  logout: () => {},
-  signOut: () => {},
+  logout: async () => {},
+  signOut: async () => {},
 });
 
 export function PosAuthProvider({ children }: { children: React.ReactNode }) {
@@ -35,27 +36,33 @@ export function PosAuthProvider({ children }: { children: React.ReactNode }) {
     const raw = localStorage.getItem("pos_user");
 
     if (raw) {
-      const parsed = JSON.parse(raw);
+      try {
+        const parsed = JSON.parse(raw);
 
-      // 👇 Doble compatibilidad rol ↔ role
-      setUser({
-        ...parsed,
-        role: parsed.rol,
-      });
+        setUser({
+          ...parsed,
+          role: parsed.rol,
+        });
+      } catch {
+        localStorage.removeItem("pos_user");
+        localStorage.removeItem("store_id");
+      }
     }
 
     setLoading(false);
   }, []);
 
-  function logout() {
-    localStorage.removeItem("pos_user");
-    setUser(null);
-    window.location.href = "/login";
+  async function logout() {
+    try {
+      await logoutPosAuth();
+    } finally {
+      setUser(null);
+      window.location.href = "/login";
+    }
   }
 
-  // 👇 Adaptador para código antiguo
-  function signOut() {
-    logout();
+  async function signOut() {
+    await logout();
   }
 
   return (
@@ -76,6 +83,6 @@ export function usePosAuth() {
   return useContext(PosAuthContext);
 }
 
-// 🔁 ADAPTADORES PARA QUE TODO LO VIEJO SIGA FUNCIONANDO
+// ADAPTADORES PARA QUE TODO LO VIEJO SIGA FUNCIONANDO
 export const AuthProvider = PosAuthProvider;
 export const useAuth = usePosAuth;

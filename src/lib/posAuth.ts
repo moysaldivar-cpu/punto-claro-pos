@@ -1,10 +1,11 @@
-﻿import { supabase } from "./supabase";
+import { supabase } from "./supabase";
 
 export type PosUser = {
   id: string;
   nombre: string;
   rol: "admin" | "gerente" | "cajero";
   store_id: string | null;
+  store_name?: string | null;
 };
 
 export type PosUserStore = {
@@ -19,6 +20,7 @@ type LoginPosUserRow = {
   nombre: string;
   rol: string;
   store_id: string | null;
+  store_name?: string | null;
 };
 
 type GetPosUserStoresRow = {
@@ -157,6 +159,7 @@ export async function loginPosWithAuth(
       nombre: row.nombre,
       rol: row.rol as PosUser["rol"],
       store_id: row.store_id,
+      store_name: row.store_name,
     })
   );
 
