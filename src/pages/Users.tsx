@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabase";
 type PosUser = {
   id: string;
   nombre: string;
-  password: string;
   rol: "admin" | "gerente" | "cajero";
   store_id: string | null;
   activo: boolean;
@@ -54,7 +53,7 @@ export default function Users() {
     const [usersResult, storesResult] = await Promise.all([
       supabase
         .from("pos_users")
-        .select("id, nombre, password, rol, store_id, activo, created_at")
+        .select("id, nombre, rol, store_id, activo, created_at")
         .order("nombre"),
       supabase
         .from("pos_stores")
@@ -90,7 +89,7 @@ export default function Users() {
     setEditingId(user.id);
     setForm({
       nombre: user.nombre ?? "",
-      password: user.password ?? "",
+      password: "",
       rol: user.rol ?? "cajero",
       store_id: user.store_id ?? "",
       activo: Boolean(user.activo),
@@ -115,8 +114,13 @@ export default function Users() {
       return;
     }
 
-    if (!cleanPassword) {
+    if (!editingId && !cleanPassword) {
       alert("Escribe el PIN o contraseña del usuario.");
+      return;
+    }
+
+    if (editingId && cleanPassword && !/^\d{8}$/.test(cleanPassword)) {
+      alert("El nuevo PIN debe contener exactamente 8 dígitos.");
       return;
     }
 
@@ -127,34 +131,79 @@ export default function Users() {
 
     setSaving(true);
 
-    const payload = {
+    const userPayload = {
       nombre: cleanName,
-      password: cleanPassword,
       rol: form.rol,
       store_id: form.rol === "admin" && !form.store_id ? null : form.store_id,
       activo: form.activo,
     };
 
     if (editingId) {
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from("pos_users")
-        .update(payload)
+        .update(userPayload)
         .eq("id", editingId);
 
-      if (error) {
-        console.error("Error actualizando usuario:", error);
-        alert("No se pudo actualizar el usuario: " + error.message);
+      if (updateError) {
+        console.error("Error actualizando usuario:", updateError);
+        alert("No se pudo actualizar el usuario: " + updateError.message);
         setSaving(false);
         return;
       }
 
-      alert("Usuario actualizado correctamente.");
-    } else {
-      const { error } = await supabase.from("pos_users").insert(payload);
+      if (cleanPassword) {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-      if (error) {
-        console.error("Error creando usuario:", error);
-        alert("No se pudo crear el usuario: " + error.message);
+        if (sessionError || !session?.access_token) {
+          console.error("No hay una sesión válida para cambiar el PIN:", sessionError);
+          alert("Tu sesión de administrador no es válida. Cierra sesión y vuelve a entrar.");
+          setSaving(false);
+          return;
+        }
+
+        supabase.functions.setAuth(session.access_token);
+
+        const { error: pinError } = await supabase.functions.invoke(
+          "reset-pos-pin",
+          {
+            body: {
+              target_pos_user_id: editingId,
+              pin: cleanPassword,
+            },
+          }
+        );
+
+        if (pinError) {
+          console.error("Error actualizando PIN:", pinError);
+          alert(
+            "Los datos del usuario se actualizaron, pero no se pudo cambiar el PIN: " +
+              pinError.message
+          );
+          await loadData();
+          setSaving(false);
+          return;
+        }
+      }
+
+      alert(
+        cleanPassword
+          ? "Usuario y PIN actualizados correctamente."
+          : "Usuario actualizado correctamente."
+      );
+    } else {
+      // Alta legacy: se conserva sin cambios por ahora.
+      // La creación/vinculación de cuentas nuevas de Supabase Auth se hará aparte.
+      const { error: insertError } = await supabase.from("pos_users").insert({
+        ...userPayload,
+        password: cleanPassword,
+      });
+
+      if (insertError) {
+        console.error("Error creando usuario:", insertError);
+        alert("No se pudo crear el usuario: " + insertError.message);
         setSaving(false);
         return;
       }
@@ -231,17 +280,28 @@ export default function Users() {
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              PIN / Contraseña
+              {editingId ? "Nuevo PIN" : "PIN / Contraseña"}
             </label>
             <input
-              type="text"
+              type="password"
               value={form.password}
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, password: e.target.value }))
               }
-              placeholder="Ej. 0605"
+              placeholder={
+                editingId
+                  ? "8 dígitos; vacío = conservar"
+                  : "PIN del usuario"
+              }
+              inputMode="numeric"
+              autoComplete="new-password"
               className="w-full border rounded px-3 py-2"
             />
+            {editingId && (
+              <p className="text-xs text-gray-500 mt-1">
+                Déjalo vacío si no deseas cambiar el PIN actual.
+              </p>
+            )}
           </div>
 
           <div>
@@ -340,7 +400,6 @@ export default function Users() {
             <thead className="bg-gray-100 text-left">
               <tr>
                 <th className="border px-3 py-2">Nombre</th>
-                <th className="border px-3 py-2">PIN</th>
                 <th className="border px-3 py-2">Rol</th>
                 <th className="border px-3 py-2">Sucursal asignada</th>
                 <th className="border px-3 py-2">Activo</th>
@@ -353,8 +412,6 @@ export default function Users() {
               {users.map((u) => (
                 <tr key={u.id} className="hover:bg-gray-50">
                   <td className="border px-3 py-2 font-medium">{u.nombre}</td>
-
-                  <td className="border px-3 py-2">{u.password}</td>
 
                   <td className="border px-3 py-2 capitalize">{u.rol}</td>
 
@@ -409,7 +466,7 @@ export default function Users() {
               {users.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="border px-3 py-4 text-center text-gray-500"
                   >
                     No hay usuarios registrados.
