@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+type UserRole = "admin" | "gerente" | "cajero";
+
 type PosUser = {
   id: string;
   nombre: string;
-  rol: "admin" | "gerente" | "cajero";
+  rol: UserRole;
   store_id: string | null;
   activo: boolean;
   created_at: string | null;
@@ -18,7 +20,7 @@ type StoreOption = {
 type FormState = {
   nombre: string;
   password: string;
-  rol: "admin" | "gerente" | "cajero";
+  rol: UserRole;
   store_id: string;
   activo: boolean;
 };
@@ -41,6 +43,8 @@ export default function Users() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+
+  const [managerStoreIds, setManagerStoreIds] = useState<string[]>([]);
 
   useEffect(() => {
     loadData();
@@ -83,10 +87,12 @@ export default function Users() {
   function resetForm() {
     setEditingId(null);
     setForm(emptyForm);
+    setManagerStoreIds([]);
   }
 
   function startEdit(user: PosUser) {
     setEditingId(user.id);
+
     setForm({
       nombre: user.nombre ?? "",
       password: "",
@@ -94,13 +100,124 @@ export default function Users() {
       store_id: user.store_id ?? "",
       activo: Boolean(user.activo),
     });
+
+    setManagerStoreIds([]);
   }
 
   function getStoreName(storeId: string | null) {
-    if (!storeId) return "Sin sucursal fija";
+    if (!storeId) return "Sin sucursal";
 
     const store = stores.find((s) => s.id === storeId);
     return store?.name ?? "Sucursal no encontrada";
+  }
+
+  function handleRoleChange(nextRole: UserRole) {
+    setForm((prev) => ({
+      ...prev,
+      rol: nextRole,
+    }));
+
+    if (nextRole !== "gerente") {
+      setManagerStoreIds([]);
+      return;
+    }
+
+    if (form.store_id) {
+      setManagerStoreIds((prev) =>
+        prev.includes(form.store_id)
+          ? prev
+          : [...prev, form.store_id]
+      );
+    }
+  }
+
+  function handlePrimaryStoreChange(storeId: string) {
+    setForm((prev) => ({
+      ...prev,
+      store_id: storeId,
+    }));
+
+    if (form.rol === "gerente" && storeId) {
+      setManagerStoreIds((prev) =>
+        prev.includes(storeId)
+          ? prev
+          : [...prev, storeId]
+      );
+    }
+  }
+
+  function toggleManagerStore(storeId: string) {
+    if (storeId === form.store_id) {
+      return;
+    }
+
+    setManagerStoreIds((prev) => {
+      if (prev.includes(storeId)) {
+        return prev.filter((id) => id !== storeId);
+      }
+
+      return [...prev, storeId];
+    });
+  }
+
+  async function prepareFunctionsAuth() {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      console.error(
+        "No hay una sesión válida de administrador:",
+        sessionError
+      );
+
+      alert(
+        "Tu sesión de administrador no es válida. Cierra sesión y vuelve a entrar."
+      );
+
+      return false;
+    }
+
+    supabase.functions.setAuth(session.access_token);
+
+    return true;
+  }
+
+  async function getFunctionErrorMessage(
+    functionError: any,
+    fallback: string
+  ) {
+    try {
+      const context = functionError?.context;
+
+      if (context && typeof context.json === "function") {
+        const payload = await context.json();
+
+        if (
+          payload &&
+          typeof payload.error === "string" &&
+          payload.error.trim()
+        ) {
+          return payload.error;
+        }
+      }
+    } catch (parseError) {
+      console.error(
+        "No se pudo leer el detalle del error de Edge Function:",
+        parseError
+      );
+    }
+
+    if (
+      functionError &&
+      typeof functionError.message === "string" &&
+      functionError.message.trim()
+    ) {
+      return functionError.message;
+    }
+
+    return fallback;
   }
 
   async function saveUser(e: React.FormEvent) {
@@ -114,110 +231,183 @@ export default function Users() {
       return;
     }
 
-    if (!editingId && !cleanPassword) {
-      alert("Escribe el PIN o contraseña del usuario.");
+    if (!editingId && !/^\d{8}$/.test(cleanPassword)) {
+      alert("El PIN debe contener exactamente 8 dígitos.");
       return;
     }
 
-    if (editingId && cleanPassword && !/^\d{8}$/.test(cleanPassword)) {
+    if (
+      editingId &&
+      cleanPassword &&
+      !/^\d{8}$/.test(cleanPassword)
+    ) {
       alert("El nuevo PIN debe contener exactamente 8 dígitos.");
       return;
     }
 
-    if ((form.rol === "cajero" || form.rol === "gerente") && !form.store_id) {
-      alert("Selecciona una sucursal para el cajero o gerente.");
+    if (!form.store_id) {
+      alert("Selecciona una sucursal principal.");
       return;
     }
 
     setSaving(true);
 
-    const userPayload = {
-      nombre: cleanName,
-      rol: form.rol,
-      store_id: form.rol === "admin" && !form.store_id ? null : form.store_id,
-      activo: form.activo,
-    };
+    try {
+      if (editingId) {
+        const userPayload = {
+          nombre: cleanName,
+          rol: form.rol,
+          store_id: form.store_id,
+          activo: form.activo,
+        };
 
-    if (editingId) {
-      const { error: updateError } = await supabase
-        .from("pos_users")
-        .update(userPayload)
-        .eq("id", editingId);
+        const { error: updateError } = await supabase
+          .from("pos_users")
+          .update(userPayload)
+          .eq("id", editingId);
 
-      if (updateError) {
-        console.error("Error actualizando usuario:", updateError);
-        alert("No se pudo actualizar el usuario: " + updateError.message);
-        setSaving(false);
-        return;
-      }
+        if (updateError) {
+          console.error(
+            "Error actualizando usuario:",
+            updateError
+          );
 
-      if (cleanPassword) {
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession();
+          alert(
+            "No se pudo actualizar el usuario: " +
+              updateError.message
+          );
 
-        if (sessionError || !session?.access_token) {
-          console.error("No hay una sesión válida para cambiar el PIN:", sessionError);
-          alert("Tu sesión de administrador no es válida. Cierra sesión y vuelve a entrar.");
-          setSaving(false);
           return;
         }
 
-        supabase.functions.setAuth(session.access_token);
+        if (cleanPassword) {
+          const authReady = await prepareFunctionsAuth();
 
-        const { error: pinError } = await supabase.functions.invoke(
-          "reset-pos-pin",
+          if (!authReady) {
+            return;
+          }
+
+          const { error: pinError } =
+            await supabase.functions.invoke(
+              "reset-pos-pin",
+              {
+                body: {
+                  target_pos_user_id: editingId,
+                  pin: cleanPassword,
+                },
+              }
+            );
+
+          if (pinError) {
+            console.error(
+              "Error actualizando PIN:",
+              pinError
+            );
+
+            const message =
+              await getFunctionErrorMessage(
+                pinError,
+                "No se pudo cambiar el PIN."
+              );
+
+            alert(
+              "Los datos del usuario se actualizaron, pero no se pudo cambiar el PIN: " +
+                message
+            );
+
+            await loadData();
+            return;
+          }
+        }
+
+        alert(
+          cleanPassword
+            ? "Usuario y PIN actualizados correctamente."
+            : "Usuario actualizado correctamente."
+        );
+      } else {
+        const authReady = await prepareFunctionsAuth();
+
+        if (!authReady) {
+          return;
+        }
+
+        const selectedManagerStores =
+          form.rol === "gerente"
+            ? Array.from(
+                new Set(
+                  [
+                    form.store_id,
+                    ...managerStoreIds,
+                  ].filter(Boolean)
+                )
+              )
+            : [];
+
+        const {
+          data: createData,
+          error: createError,
+        } = await supabase.functions.invoke(
+          "create-pos-user",
           {
             body: {
-              target_pos_user_id: editingId,
+              nombre: cleanName,
               pin: cleanPassword,
+              rol: form.rol,
+              store_id: form.store_id,
+              store_ids: selectedManagerStores,
+              activo: form.activo,
             },
           }
         );
 
-        if (pinError) {
-          console.error("Error actualizando PIN:", pinError);
-          alert(
-            "Los datos del usuario se actualizaron, pero no se pudo cambiar el PIN: " +
-              pinError.message
+        if (createError) {
+          console.error(
+            "Error creando usuario:",
+            createError
           );
-          await loadData();
-          setSaving(false);
+
+          const message =
+            await getFunctionErrorMessage(
+              createError,
+              "No se pudo crear el usuario."
+            );
+
+          alert(
+            "No se pudo crear el usuario: " +
+              message
+          );
+
           return;
         }
+
+        if (!createData?.ok) {
+          console.error(
+            "La función de creación respondió sin confirmar éxito:",
+            createData
+          );
+
+          alert(
+            "No se pudo confirmar la creación del usuario."
+          );
+
+          return;
+        }
+
+        alert("Usuario creado correctamente.");
       }
 
-      alert(
-        cleanPassword
-          ? "Usuario y PIN actualizados correctamente."
-          : "Usuario actualizado correctamente."
-      );
-    } else {
-      // Alta legacy: se conserva sin cambios por ahora.
-      // La creación/vinculación de cuentas nuevas de Supabase Auth se hará aparte.
-      const { error: insertError } = await supabase.from("pos_users").insert({
-        ...userPayload,
-        password: cleanPassword,
-      });
-
-      if (insertError) {
-        console.error("Error creando usuario:", insertError);
-        alert("No se pudo crear el usuario: " + insertError.message);
-        setSaving(false);
-        return;
-      }
-
-      alert("Usuario creado correctamente.");
+      resetForm();
+      await loadData();
+    } finally {
+      setSaving(false);
     }
-
-    resetForm();
-    await loadData();
-    setSaving(false);
   }
 
   async function toggleUserActive(user: PosUser) {
-    const action = user.activo ? "desactivar" : "activar";
+    const action = user.activo
+      ? "desactivar"
+      : "activar";
 
     const confirmed = window.confirm(
       `¿Seguro que deseas ${action} al usuario "${user.nombre}"?`
@@ -227,12 +417,22 @@ export default function Users() {
 
     const { error } = await supabase
       .from("pos_users")
-      .update({ activo: !user.activo })
+      .update({
+        activo: !user.activo,
+      })
       .eq("id", user.id);
 
     if (error) {
-      console.error("Error cambiando estado del usuario:", error);
-      alert("No se pudo cambiar el estado del usuario: " + error.message);
+      console.error(
+        "Error cambiando estado del usuario:",
+        error
+      );
+
+      alert(
+        "No se pudo cambiar el estado del usuario: " +
+          error.message
+      );
+
       return;
     }
 
@@ -246,10 +446,15 @@ export default function Users() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="bg-white p-6 rounded shadow">
-        <h1 className="text-2xl font-bold mb-2">Usuarios</h1>
+        <h1 className="text-2xl font-bold mb-2">
+          Usuarios
+        </h1>
+
         <p className="text-gray-600">
-          Administra usuarios, roles y sucursal asignada. Los cajeros operan
-          únicamente en la sucursal que tengan asignada.
+          Administra usuarios, roles y sucursales.
+          Los cajeros operan únicamente en su
+          sucursal asignada. Los gerentes pueden
+          tener acceso a varias sucursales.
         </p>
       </div>
 
@@ -261,17 +466,28 @@ export default function Users() {
 
       <div className="bg-white p-6 rounded shadow">
         <h2 className="text-lg font-semibold mb-4">
-          {editingId ? "Editar usuario" : "Nuevo usuario"}
+          {editingId
+            ? "Editar usuario"
+            : "Nuevo usuario"}
         </h2>
 
-        <form onSubmit={saveUser} className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <form
+          onSubmit={saveUser}
+          className="grid grid-cols-1 md:grid-cols-5 gap-4"
+        >
           <div>
-            <label className="block text-sm font-medium mb-1">Nombre</label>
+            <label className="block text-sm font-medium mb-1">
+              Nombre
+            </label>
+
             <input
               type="text"
               value={form.nombre}
               onChange={(e) =>
-                setForm((prev) => ({ ...prev, nombre: e.target.value }))
+                setForm((prev) => ({
+                  ...prev,
+                  nombre: e.target.value,
+                }))
               }
               placeholder="Ej. Lupita"
               className="w-full border rounded px-3 py-2"
@@ -280,69 +496,89 @@ export default function Users() {
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              {editingId ? "Nuevo PIN" : "PIN / Contraseña"}
+              {editingId
+                ? "Nuevo PIN"
+                : "PIN"}
             </label>
+
             <input
               type="password"
               value={form.password}
               onChange={(e) =>
-                setForm((prev) => ({ ...prev, password: e.target.value }))
+                setForm((prev) => ({
+                  ...prev,
+                  password: e.target.value,
+                }))
               }
               placeholder={
                 editingId
                   ? "8 dígitos; vacío = conservar"
-                  : "PIN del usuario"
+                  : "8 dígitos"
               }
               inputMode="numeric"
               autoComplete="new-password"
+              maxLength={8}
               className="w-full border rounded px-3 py-2"
             />
-            {editingId && (
-              <p className="text-xs text-gray-500 mt-1">
-                Déjalo vacío si no deseas cambiar el PIN actual.
-              </p>
-            )}
+
+            <p className="text-xs text-gray-500 mt-1">
+              {editingId
+                ? "Déjalo vacío si no deseas cambiar el PIN actual."
+                : "El PIN debe tener exactamente 8 dígitos."}
+            </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Rol</label>
+            <label className="block text-sm font-medium mb-1">
+              Rol
+            </label>
+
             <select
               value={form.rol}
               onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  rol: e.target.value as "admin" | "gerente" | "cajero",
-                  store_id:
-                    e.target.value === "admin" ? prev.store_id : prev.store_id,
-                }))
+                handleRoleChange(
+                  e.target.value as UserRole
+                )
               }
               className="w-full border rounded px-3 py-2"
             >
-              <option value="cajero">Cajero</option>
-              <option value="gerente">Gerente</option>
-              <option value="admin">Admin</option>
+              <option value="cajero">
+                Cajero
+              </option>
+
+              <option value="gerente">
+                Gerente
+              </option>
+
+              <option value="admin">
+                Admin
+              </option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Sucursal asignada
+              Sucursal principal
             </label>
+
             <select
               value={form.store_id}
               onChange={(e) =>
-                setForm((prev) => ({ ...prev, store_id: e.target.value }))
+                handlePrimaryStoreChange(
+                  e.target.value
+                )
               }
               className="w-full border rounded px-3 py-2"
             >
               <option value="">
-                {form.rol === "admin"
-                  ? "Sin sucursal fija"
-                  : "Selecciona sucursal"}
+                Selecciona sucursal
               </option>
 
               {stores.map((store) => (
-                <option key={store.id} value={store.id}>
+                <option
+                  key={store.id}
+                  value={store.id}
+                >
                   {store.name}
                 </option>
               ))}
@@ -350,21 +586,105 @@ export default function Users() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Estado</label>
+            <label className="block text-sm font-medium mb-1">
+              Estado
+            </label>
+
             <select
-              value={form.activo ? "active" : "inactive"}
+              value={
+                form.activo
+                  ? "active"
+                  : "inactive"
+              }
               onChange={(e) =>
                 setForm((prev) => ({
                   ...prev,
-                  activo: e.target.value === "active",
+                  activo:
+                    e.target.value ===
+                    "active",
                 }))
               }
               className="w-full border rounded px-3 py-2"
             >
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
+              <option value="active">
+                Activo
+              </option>
+
+              <option value="inactive">
+                Inactivo
+              </option>
             </select>
           </div>
+
+          {!editingId &&
+            form.rol === "gerente" && (
+              <div className="md:col-span-5 border rounded p-4 bg-gray-50">
+                <div className="mb-3">
+                  <h3 className="font-medium">
+                    Sucursales del gerente
+                  </h3>
+
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selecciona todas las
+                    sucursales a las que tendrá
+                    acceso. La sucursal principal
+                    siempre queda incluida.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {stores.map((store) => {
+                    const isPrimary =
+                      store.id ===
+                      form.store_id;
+
+                    const checked =
+                      isPrimary ||
+                      managerStoreIds.includes(
+                        store.id
+                      );
+
+                    return (
+                      <label
+                        key={store.id}
+                        className="flex items-center gap-2 border rounded px-3 py-2 bg-white"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={isPrimary}
+                          onChange={() =>
+                            toggleManagerStore(
+                              store.id
+                            )
+                          }
+                        />
+
+                        <span className="text-sm">
+                          {store.name}
+
+                          {isPrimary
+                            ? " (principal)"
+                            : ""}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+          {editingId &&
+            form.rol === "gerente" && (
+              <div className="md:col-span-5 bg-amber-50 border border-amber-200 text-amber-800 rounded p-3 text-sm">
+                Por ahora esta pantalla permite
+                cambiar la sucursal principal del
+                gerente. Las sucursales múltiples
+                existentes se conservan sin
+                cambios mientras terminamos el
+                flujo seguro para administrarlas.
+              </div>
+            )}
 
           <div className="md:col-span-5 flex gap-3">
             <button
@@ -383,7 +703,8 @@ export default function Users() {
               <button
                 type="button"
                 onClick={resetForm}
-                className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
+                disabled={saving}
+                className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 disabled:opacity-60"
               >
                 Cancelar edición
               </button>
@@ -393,34 +714,62 @@ export default function Users() {
       </div>
 
       <div className="bg-white p-6 rounded shadow">
-        <h2 className="text-lg font-semibold mb-4">Usuarios registrados</h2>
+        <h2 className="text-lg font-semibold mb-4">
+          Usuarios registrados
+        </h2>
 
         <div className="overflow-x-auto">
           <table className="w-full border text-sm">
             <thead className="bg-gray-100 text-left">
               <tr>
-                <th className="border px-3 py-2">Nombre</th>
-                <th className="border px-3 py-2">Rol</th>
-                <th className="border px-3 py-2">Sucursal asignada</th>
-                <th className="border px-3 py-2">Activo</th>
-                <th className="border px-3 py-2">Creado</th>
-                <th className="border px-3 py-2">Acciones</th>
+                <th className="border px-3 py-2">
+                  Nombre
+                </th>
+
+                <th className="border px-3 py-2">
+                  Rol
+                </th>
+
+                <th className="border px-3 py-2">
+                  Sucursal principal
+                </th>
+
+                <th className="border px-3 py-2">
+                  Activo
+                </th>
+
+                <th className="border px-3 py-2">
+                  Creado
+                </th>
+
+                <th className="border px-3 py-2">
+                  Acciones
+                </th>
               </tr>
             </thead>
 
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50">
-                  <td className="border px-3 py-2 font-medium">{u.nombre}</td>
+              {users.map((user) => (
+                <tr
+                  key={user.id}
+                  className="hover:bg-gray-50"
+                >
+                  <td className="border px-3 py-2 font-medium">
+                    {user.nombre}
+                  </td>
 
-                  <td className="border px-3 py-2 capitalize">{u.rol}</td>
-
-                  <td className="border px-3 py-2">
-                    {getStoreName(u.store_id)}
+                  <td className="border px-3 py-2 capitalize">
+                    {user.rol}
                   </td>
 
                   <td className="border px-3 py-2">
-                    {u.activo ? (
+                    {getStoreName(
+                      user.store_id
+                    )}
+                  </td>
+
+                  <td className="border px-3 py-2">
+                    {user.activo ? (
                       <span className="inline-block px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-semibold">
                         Sí
                       </span>
@@ -432,8 +781,12 @@ export default function Users() {
                   </td>
 
                   <td className="border px-3 py-2 text-gray-600">
-                    {u.created_at
-                      ? new Date(u.created_at).toLocaleString("es-MX")
+                    {user.created_at
+                      ? new Date(
+                          user.created_at
+                        ).toLocaleString(
+                          "es-MX"
+                        )
                       : "-"}
                   </td>
 
@@ -441,7 +794,9 @@ export default function Users() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => startEdit(u)}
+                        onClick={() =>
+                          startEdit(user)
+                        }
                         className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
                       >
                         Editar
@@ -449,14 +804,20 @@ export default function Users() {
 
                       <button
                         type="button"
-                        onClick={() => toggleUserActive(u)}
+                        onClick={() =>
+                          toggleUserActive(
+                            user
+                          )
+                        }
                         className={`px-3 py-1 rounded text-white ${
-                          u.activo
+                          user.activo
                             ? "bg-red-500 hover:bg-red-600"
                             : "bg-green-600 hover:bg-green-700"
                         }`}
                       >
-                        {u.activo ? "Desactivar" : "Activar"}
+                        {user.activo
+                          ? "Desactivar"
+                          : "Activar"}
                       </button>
                     </div>
                   </td>
@@ -469,7 +830,8 @@ export default function Users() {
                     colSpan={6}
                     className="border px-3 py-4 text-center text-gray-500"
                   >
-                    No hay usuarios registrados.
+                    No hay usuarios
+                    registrados.
                   </td>
                 </tr>
               )}
@@ -478,9 +840,10 @@ export default function Users() {
         </div>
 
         <p className="text-xs text-gray-500 mt-3">
-          Nota: para evitar errores de operación, los cajeros deben tener una
-          sucursal asignada. El administrador puede consultar varias sucursales
-          desde su acceso.
+          Los cajeros utilizan una
+          sucursal principal. Los gerentes
+          nuevos pueden recibir acceso a
+          varias sucursales desde su alta.
         </p>
       </div>
     </div>
