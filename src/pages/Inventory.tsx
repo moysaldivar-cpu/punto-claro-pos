@@ -60,6 +60,8 @@ export default function Inventory() {
 
   const localStoreId = localStorage.getItem("store_id") || "";
   const isAdmin = user?.rol === "admin";
+  const isManager = user?.rol === "gerente";
+  const canBulkLoad = isAdmin || isManager;
 
   useEffect(() => {
     if (authLoading) return;
@@ -326,8 +328,8 @@ export default function Inventory() {
   }
 
   async function handleBulkInventoryLoad() {
-    if (!isAdmin) {
-      alert("Solo el administrador puede usar la carga masiva.");
+    if (!canBulkLoad) {
+      alert("Solo administración o gerencia pueden usar la carga masiva.");
       return;
     }
 
@@ -527,7 +529,7 @@ export default function Inventory() {
         </div>
       )}
 
-      {isAdmin && selectedStoreId !== "all" && (
+      {canBulkLoad && selectedStoreId !== "all" && (
         <div className="bg-white p-6 rounded shadow">
           <h2 className="text-xl font-bold mb-2">
             Carga masiva de inventario

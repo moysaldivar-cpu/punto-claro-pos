@@ -45,6 +45,8 @@ export default function Users() {
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const [managerStoreIds, setManagerStoreIds] = useState<string[]>([]);
+  const [loadingManagerStores, setLoadingManagerStores] = useState(false);
+  const [managerStoresReady, setManagerStoresReady] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -88,9 +90,11 @@ export default function Users() {
     setEditingId(null);
     setForm(emptyForm);
     setManagerStoreIds([]);
+    setLoadingManagerStores(false);
+    setManagerStoresReady(true);
   }
 
-  function startEdit(user: PosUser) {
+  async function startEdit(user: PosUser) {
     setEditingId(user.id);
 
     setForm({
@@ -101,7 +105,95 @@ export default function Users() {
       activo: Boolean(user.activo),
     });
 
-    setManagerStoreIds([]);
+    if (user.rol !== "gerente") {
+      setManagerStoreIds([]);
+      setLoadingManagerStores(false);
+      setManagerStoresReady(true);
+      return;
+    }
+
+    setManagerStoreIds(
+      user.store_id ? [user.store_id] : []
+    );
+    setManagerStoresReady(false);
+    setLoadingManagerStores(true);
+
+    try {
+      const authReady = await prepareFunctionsAuth();
+
+      if (!authReady) {
+        return;
+      }
+
+      const {
+        data: storesData,
+        error: storesError,
+      } = await supabase.functions.invoke(
+        "manage-pos-user",
+        {
+          body: {
+            action: "get_stores",
+            target_pos_user_id: user.id,
+          },
+        }
+      );
+
+      if (storesError) {
+        console.error(
+          "Error cargando sucursales del gerente:",
+          storesError
+        );
+
+        const message =
+          await getFunctionErrorMessage(
+            storesError,
+            "No se pudieron cargar las sucursales del gerente."
+          );
+
+        alert(message);
+        return;
+      }
+
+      if (
+        !storesData?.ok ||
+        !Array.isArray(storesData.store_ids)
+      ) {
+        console.error(
+          "Respuesta inválida al cargar sucursales del gerente:",
+          storesData
+        );
+
+        alert(
+          "No se pudieron confirmar las sucursales actuales del gerente."
+        );
+        return;
+      }
+
+      const loadedStoreIds = storesData.store_ids
+        .filter(
+          (storeId: unknown): storeId is string =>
+            typeof storeId === "string" &&
+            Boolean(storeId)
+        );
+
+      const nextStoreIds = Array.from(
+        new Set(
+          [
+            user.store_id,
+            ...loadedStoreIds,
+          ].filter(
+            (storeId): storeId is string =>
+              typeof storeId === "string" &&
+              Boolean(storeId)
+          )
+        )
+      );
+
+      setManagerStoreIds(nextStoreIds);
+      setManagerStoresReady(true);
+    } finally {
+      setLoadingManagerStores(false);
+    }
   }
 
   function getStoreName(storeId: string | null) {
@@ -112,6 +204,8 @@ export default function Users() {
   }
 
   function handleRoleChange(nextRole: UserRole) {
+    const previousRole = form.rol;
+
     setForm((prev) => ({
       ...prev,
       rol: nextRole,
@@ -119,6 +213,17 @@ export default function Users() {
 
     if (nextRole !== "gerente") {
       setManagerStoreIds([]);
+      setLoadingManagerStores(false);
+      setManagerStoresReady(true);
+      return;
+    }
+
+    if (previousRole !== "gerente") {
+      setManagerStoreIds(
+        form.store_id ? [form.store_id] : []
+      );
+      setLoadingManagerStores(false);
+      setManagerStoresReady(true);
       return;
     }
 
@@ -250,21 +355,60 @@ export default function Users() {
       return;
     }
 
+    if (
+      editingId &&
+      form.rol === "gerente" &&
+      (
+        loadingManagerStores ||
+        !managerStoresReady
+      )
+    ) {
+      alert(
+        "Todavía no se han cargado correctamente las sucursales actuales del gerente. Cancela la edición y vuelve a intentarlo."
+      );
+      return;
+    }
+
     setSaving(true);
 
     try {
       if (editingId) {
-        const userPayload = {
-          nombre: cleanName,
-          rol: form.rol,
-          store_id: form.store_id,
-          activo: form.activo,
-        };
+        const authReady = await prepareFunctionsAuth();
 
-        const { error: updateError } = await supabase
-          .from("pos_users")
-          .update(userPayload)
-          .eq("id", editingId);
+        if (!authReady) {
+          return;
+        }
+
+        const selectedManagerStores =
+          form.rol === "gerente"
+            ? Array.from(
+                new Set(
+                  [
+                    form.store_id,
+                    ...managerStoreIds,
+                  ].filter(Boolean)
+                )
+              )
+            : [];
+
+        const {
+          data: updateData,
+          error: updateError,
+        } = await supabase.functions.invoke(
+          "manage-pos-user",
+          {
+            body: {
+              action: "update",
+              target_pos_user_id: editingId,
+              nombre: cleanName,
+              pin: cleanPassword,
+              rol: form.rol,
+              store_id: form.store_id,
+              store_ids: selectedManagerStores,
+              activo: form.activo,
+            },
+          }
+        );
 
         if (updateError) {
           console.error(
@@ -272,60 +416,41 @@ export default function Users() {
             updateError
           );
 
+          const message =
+            await getFunctionErrorMessage(
+              updateError,
+              "No se pudo actualizar el usuario."
+            );
+
           alert(
             "No se pudo actualizar el usuario: " +
-              updateError.message
+              message
           );
 
           return;
         }
 
-        if (cleanPassword) {
-          const authReady = await prepareFunctionsAuth();
+        if (!updateData?.ok) {
+          console.error(
+            "La función de actualización respondió sin confirmar éxito:",
+            updateData
+          );
 
-          if (!authReady) {
-            return;
-          }
+          alert(
+            "No se pudo confirmar la actualización del usuario."
+          );
 
-          const { error: pinError } =
-            await supabase.functions.invoke(
-              "reset-pos-pin",
-              {
-                body: {
-                  target_pos_user_id: editingId,
-                  pin: cleanPassword,
-                },
-              }
-            );
-
-          if (pinError) {
-            console.error(
-              "Error actualizando PIN:",
-              pinError
-            );
-
-            const message =
-              await getFunctionErrorMessage(
-                pinError,
-                "No se pudo cambiar el PIN."
-              );
-
-            alert(
-              "Los datos del usuario se actualizaron, pero no se pudo cambiar el PIN: " +
-                message
-            );
-
-            await loadData();
-            return;
-          }
+          return;
         }
 
         alert(
           cleanPassword
-            ? "Usuario y PIN actualizados correctamente."
+            ? "Usuario, sucursales y PIN actualizados correctamente."
+            : form.rol === "gerente"
+            ? "Usuario y sucursales actualizados correctamente."
             : "Usuario actualizado correctamente."
         );
-      } else {
+      }else {
         const authReady = await prepareFunctionsAuth();
 
         if (!authReady) {
@@ -616,80 +741,94 @@ export default function Users() {
             </select>
           </div>
 
-          {!editingId &&
-            form.rol === "gerente" && (
-              <div className="md:col-span-5 border rounded p-4 bg-gray-50">
-                <div className="mb-3">
-                  <h3 className="font-medium">
-                    Sucursales del gerente
-                  </h3>
+          {form.rol === "gerente" && (
+            <div className="md:col-span-5 border rounded p-4 bg-gray-50">
+              <div className="mb-3">
+                <h3 className="font-medium">
+                  Sucursales del gerente
+                </h3>
 
-                  <p className="text-xs text-gray-500 mt-1">
-                    Selecciona todas las
-                    sucursales a las que tendrá
-                    acceso. La sucursal principal
-                    siempre queda incluida.
-                  </p>
-                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {editingId && loadingManagerStores
+                    ? "Cargando sucursales actuales del gerente..."
+                    : "Selecciona todas las sucursales a las que tendrá acceso. La sucursal principal siempre queda incluida."}
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {stores.map((store) => {
-                    const isPrimary =
-                      store.id ===
-                      form.store_id;
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {stores.map((store) => {
+                  const isPrimary =
+                    store.id ===
+                    form.store_id;
 
-                    const checked =
-                      isPrimary ||
-                      managerStoreIds.includes(
-                        store.id
-                      );
-
-                    return (
-                      <label
-                        key={store.id}
-                        className="flex items-center gap-2 border rounded px-3 py-2 bg-white"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={isPrimary}
-                          onChange={() =>
-                            toggleManagerStore(
-                              store.id
-                            )
-                          }
-                        />
-
-                        <span className="text-sm">
-                          {store.name}
-
-                          {isPrimary
-                            ? " (principal)"
-                            : ""}
-                        </span>
-                      </label>
+                  const checked =
+                    isPrimary ||
+                    managerStoreIds.includes(
+                      store.id
                     );
-                  })}
-                </div>
-              </div>
-            )}
 
-          {editingId &&
-            form.rol === "gerente" && (
-              <div className="md:col-span-5 bg-amber-50 border border-amber-200 text-amber-800 rounded p-3 text-sm">
-                Por ahora esta pantalla permite
-                cambiar la sucursal principal del
-                gerente. Las sucursales múltiples
-                existentes se conservan sin
-                cambios mientras terminamos el
-                flujo seguro para administrarlas.
+                  const assignmentsLocked =
+                    Boolean(editingId) &&
+                    (
+                      loadingManagerStores ||
+                      !managerStoresReady
+                    );
+
+                  return (
+                    <label
+                      key={store.id}
+                      className="flex items-center gap-2 border rounded px-3 py-2 bg-white"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={
+                          isPrimary ||
+                          assignmentsLocked
+                        }
+                        onChange={() =>
+                          toggleManagerStore(
+                            store.id
+                          )
+                        }
+                      />
+
+                      <span className="text-sm">
+                        {store.name}
+
+                        {isPrimary
+                          ? " (principal)"
+                          : ""}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
-            )}
+
+              {editingId &&
+                !loadingManagerStores &&
+                !managerStoresReady && (
+                  <p className="text-sm text-red-700 mt-3">
+                    No se pudieron cargar de forma segura las sucursales actuales. Cancela la edición y vuelve a intentarlo antes de guardar cambios.
+                  </p>
+                )}
+            </div>
+          )}
 
           <div className="md:col-span-5 flex gap-3">
             <button
               type="submit"
-              disabled={saving}
+              disabled={
+                saving ||
+                (
+                  Boolean(editingId) &&
+                  form.rol === "gerente" &&
+                  (
+                    loadingManagerStores ||
+                    !managerStoresReady
+                  )
+                )
+              }
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
             >
               {saving
@@ -840,10 +979,7 @@ export default function Users() {
         </div>
 
         <p className="text-xs text-gray-500 mt-3">
-          Los cajeros utilizan una
-          sucursal principal. Los gerentes
-          nuevos pueden recibir acceso a
-          varias sucursales desde su alta.
+          Los cajeros utilizan una sucursal principal. Los gerentes pueden recibir y administrar acceso a varias sucursales.
         </p>
       </div>
     </div>
