@@ -344,7 +344,7 @@ export default function Inventory() {
     }
 
     const confirmLoad = window.confirm(
-      "Esta carga ajustará el stock absoluto de la sucursal seleccionada. ¿Deseas continuar?"
+      "Esta carga sumará las cantidades al stock actual de la sucursal seleccionada. ¿Deseas continuar?"
     );
 
     if (!confirmLoad) return;
@@ -377,52 +377,28 @@ export default function Inventory() {
           continue;
         }
 
-        const { data: existing, error: existingError } = await supabase
-          .from("inventory")
-          .select("id")
-          .eq("store_id", selectedStoreId)
-          .eq("product_id", product.id)
-          .maybeSingle();
+        const { data: addResult, error: addError } = await supabase.rpc(
+          "add_inventory_stock",
+          {
+            p_store_id: selectedStoreId,
+            p_product_id: product.id,
+            p_quantity: parsed.stock,
+          }
+        );
 
-        if (existingError) {
+        if (addError) {
           invalidLines.push(
-            `${parsed.originalLine} | Error consultando inventario`
+            `${parsed.originalLine} | Error sumando inventario`
           );
           continue;
         }
 
-        if (existing?.id) {
-          const { error: updateError } = await supabase
-            .from("inventory")
-            .update({
-              stock: parsed.stock,
-            })
-            .eq("id", existing.id);
+        const resultRow = Array.isArray(addResult) ? addResult[0] : addResult;
 
-          if (updateError) {
-            invalidLines.push(
-              `${parsed.originalLine} | Error actualizando stock`
-            );
-            continue;
-          }
-
-          updated += 1;
-        } else {
-          const { error: insertError } = await supabase
-            .from("inventory")
-            .insert({
-              product_id: product.id,
-              store_id: selectedStoreId,
-              stock: parsed.stock,
-              min_stock: 0,
-            });
-
-          if (insertError) {
-            invalidLines.push(`${parsed.originalLine} | Error creando stock`);
-            continue;
-          }
-
+        if (resultRow?.created) {
           created += 1;
+        } else {
+          updated += 1;
         }
       }
 
@@ -537,7 +513,7 @@ export default function Inventory() {
 
           <p className="text-sm text-gray-600 mb-3">
             Pega una lista con formato <strong>SKU, STOCK</strong>. Esta carga
-            ajusta el stock absoluto de la sucursal seleccionada:{" "}
+            suma las cantidades ingresadas al stock actual de la sucursal seleccionada:{" "}
             <strong>{selectedStore?.name}</strong>.
           </p>
 
@@ -730,8 +706,8 @@ TEST-ADMIN-001, 13`}
         </div>
 
         <p className="text-xs text-gray-500 mt-3">
-          Para asignar inventario inicial a productos nuevos, usa la carga
-          masiva con formato SKU, STOCK en una sucursal específica.
+          Para agregar existencias, usa la carga masiva con formato SKU, STOCK
+          en una sucursal específica. Las cantidades se suman al stock actual.
         </p>
       </div>
 
