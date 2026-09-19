@@ -5,7 +5,7 @@ type SpecialPricing = {
   enabled: boolean;
   start: string;
   end: string;
-  percent: number;
+  percent: number | "";
 };
 
 export default function Settings() {
@@ -17,7 +17,7 @@ export default function Settings() {
     enabled: false,
     start: "",
     end: "",
-    percent: 0,
+    percent: "",
   });
 
   /* ===============================
@@ -44,11 +44,13 @@ export default function Settings() {
         }
 
         if (row.key === "special_pricing") {
+          const multiplier = Number(row.value.multiplier ?? 1);
+
           setSpecialPricing({
             enabled: row.value.enabled ?? false,
             start: row.value.start ?? "",
             end: row.value.end ?? "",
-            percent: row.value.percent ?? 0,
+            percent: Number(((multiplier - 1) * 100).toFixed(2)),
           });
         }
       }
@@ -72,7 +74,12 @@ export default function Settings() {
       }),
       supabase.from("app_settings").upsert({
         key: "special_pricing",
-        value: specialPricing,
+        value: {
+          enabled: specialPricing.enabled,
+          start: specialPricing.start,
+          end: specialPricing.end,
+          multiplier: 1 + Number(specialPricing.percent) / 100,
+        },
       }),
     ];
 
@@ -127,8 +134,22 @@ export default function Settings() {
           {/* AJUSTE POR HORARIO */}
           <div className="mb-6">
             <h2 className="font-semibold mb-2">
-              Ajuste de precio por horario
+              Precio nocturno de cerveza
             </h2>
+
+            <label className="flex items-center gap-2 mb-3">
+              <input
+                type="checkbox"
+                checked={specialPricing.enabled}
+                onChange={(e) =>
+                  setSpecialPricing({
+                    ...specialPricing,
+                    enabled: e.target.checked,
+                  })
+                }
+              />
+              Activo
+            </label>
 
             <div className="flex gap-4 mb-3">
               <div className="flex-1">
@@ -163,7 +184,7 @@ export default function Settings() {
             </div>
 
             <label className="block text-sm mb-1">
-              Ajuste (%) – puede ser negativo
+              Incremento nocturno (%)
             </label>
             <input
               type="number"
@@ -171,16 +192,12 @@ export default function Settings() {
               onChange={(e) =>
                 setSpecialPricing({
                   ...specialPricing,
-                  percent: Number(e.target.value),
+                  percent:
+                    e.target.value === "" ? "" : Number(e.target.value),
                 })
               }
               className="border rounded px-3 py-2 w-full"
-              placeholder="Ej. 10 o -5"
             />
-
-            <p className="text-sm text-gray-500 mt-1">
-              Ejemplo: 10 = +10%, -5 = -5%
-            </p>
           </div>
 
           <button

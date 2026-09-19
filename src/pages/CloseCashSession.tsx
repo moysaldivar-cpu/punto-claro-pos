@@ -53,9 +53,9 @@ type CashDenominationCounts = Record<CashDenominationKey, string>;
 
 type CloseTicketData = {
   sessionId: string;
+  userName: string;
   closedAt: string;
   exchangeRate: number;
-  expectedCash: number;
   realCash: number;
   cashDifference: number;
   realCard: number;
@@ -424,6 +424,8 @@ export default function CloseCashSession() {
       p_real_cash: realCashNumber,
       p_real_card: realCardNumber,
       p_real_usd: realUsdNumber,
+      p_empty_corona_boxes: emptyCoronaBoxesNumber,
+      p_empty_heineken_boxes: emptyHeinekenBoxesNumber,
     });
 
     if (error) {
@@ -434,9 +436,9 @@ export default function CloseCashSession() {
 
     setCloseTicket({
       sessionId,
+      userName: String(user?.nombre || "Sin nombre").trim() || "Sin nombre",
       closedAt: new Date().toISOString(),
       exchangeRate,
-      expectedCash: Number(expectedCash.toFixed(2)),
       realCash: realCashNumber,
       cashDifference,
       realCard: realCardNumber,
@@ -470,11 +472,6 @@ export default function CloseCashSession() {
                 <h2 className="text-lg font-semibold mb-4">Resumen del Turno</h2>
 
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Efectivo esperado</span>
-                    <span>{money(expectedCash)}</span>
-                  </div>
-
                   <div className="flex justify-between">
                     <span>Tarjeta esperada</span>
                     <span>{money(expectedCard)}</span>
@@ -574,7 +571,7 @@ export default function CloseCashSession() {
                 <div className="border rounded p-4 bg-gray-50">
                   <h3 className="font-semibold mb-1">Cajas vacías</h3>
                   <p className="text-xs text-gray-500 mb-3">
-                    Solo dato informativo. No afecta caja, inventario ni reportes.
+                    Solo dato informativo. No afecta caja ni inventario.
                   </p>
 
                   <div className="grid md:grid-cols-2 gap-4">
@@ -782,12 +779,6 @@ function CloseTicketModal({
   const hasEmptyBoxes =
     ticket.emptyCoronaBoxes > 0 || ticket.emptyHeinekenBoxes > 0;
 
-  const displaySession =
-    String(ticket.sessionId || "")
-      .replace(/-/g, "")
-      .slice(0, 8)
-      .toUpperCase() || "N/A";
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isPrintShortcut =
@@ -894,7 +885,7 @@ function CloseTicketModal({
 
           <div className="mb-4 text-sm space-y-1">
             <div>
-              <span className="font-semibold">Sesión:</span> {displaySession}
+              <span className="font-semibold">Usuario:</span> {ticket.userName}
             </div>
             <div>
               <span className="font-semibold">Fecha:</span>{" "}
@@ -926,11 +917,6 @@ function CloseTicketModal({
           </div>
 
           <div className="space-y-1 text-sm mb-4">
-            <div className="flex justify-between">
-              <span>Efectivo esperado</span>
-              <span>{money(ticket.expectedCash)}</span>
-            </div>
-
             <div className="flex justify-between">
               <span>Efectivo declarado</span>
               <span>{money(ticket.realCash)}</span>
@@ -971,20 +957,24 @@ function CloseTicketModal({
               </div>
             ) : (
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span>Corona</span>
-                  <span>{ticket.emptyCoronaBoxes}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
+                  <span className="min-w-0">Corona</span>
+                  <span className="min-w-[2.5rem] text-right font-semibold tabular-nums whitespace-nowrap">
+                    {ticket.emptyCoronaBoxes}
+                  </span>
                 </div>
 
-                <div className="flex justify-between">
-                  <span>Heineken</span>
-                  <span>{ticket.emptyHeinekenBoxes}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
+                  <span className="min-w-0">Heineken</span>
+                  <span className="min-w-[2.5rem] text-right font-semibold tabular-nums whitespace-nowrap">
+                    {ticket.emptyHeinekenBoxes}
+                  </span>
                 </div>
               </div>
             )}
 
             <div className="text-xs text-gray-500 mt-2">
-              Dato informativo. No afecta caja, inventario ni reportes.
+              Dato informativo. No afecta caja ni inventario.
             </div>
           </div>
 

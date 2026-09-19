@@ -18,18 +18,7 @@ import ConteoTurno from "@/pages/ConteoTurno";
 import InventoryLoss from "@/pages/InventoryLoss";
 import Stores from "@/pages/Stores";
 import SaleAdjustments from "@/pages/SaleAdjustments";
-
-/* Configuración placeholder */
-function Configuracion() {
-  return (
-    <div className="max-w-xl mx-auto bg-white p-6 rounded shadow">
-      <h1 className="text-xl font-bold mb-2">Configuración</h1>
-      <p className="text-gray-600">
-        Este módulo estará disponible en próximas versiones del sistema.
-      </p>
-    </div>
-  );
-}
+import Settings from "@/pages/Settings";
 
 export default function Router() {
   return (
@@ -172,7 +161,7 @@ export default function Router() {
           path="/configuracion"
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
-              <Configuracion />
+              <Settings />
             </ProtectedRoute>
           }
         />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import PaymentModal from "@/components/PaymentModal";
 import { usePosAuth } from "@/contexts/AuthContext";
+import { useAppSettings, type SpecialPricingSettings } from "@/hooks/useAppSettings";
 import beerZoneLogo from "@/assets/beer-zone-logo.png";
 
 type ProductRow = {
@@ -120,6 +121,13 @@ type StoreOption = {
 
 const WITHDRAWAL_THRESHOLD_MXN = 2000;
 
+const DEFAULT_NIGHT_PRICING_SETTINGS: SpecialPricingSettings = {
+  enabled: true,
+  start: "23:00",
+  end: "01:00",
+  multiplier: 1.35,
+};
+
 function round2(value: number) {
   return Number(value.toFixed(2));
 }
@@ -142,13 +150,68 @@ function formatCashBreakdownForReason(items: CashBreakdownItem[]) {
     .join("; ");
 }
 
-function isNightPricingActive(date = new Date()) {
-  const hour = date.getHours();
-  const minute = date.getMinutes();
-  const totalMinutes = hour * 60 + minute;
+function parseTimeToMinutes(value: string) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (!match) return null;
 
-  const start = 23 * 60;
-  const end = 1 * 60;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function normalizeNightPricingSettings(
+  settings: SpecialPricingSettings | null | undefined
+): SpecialPricingSettings {
+  const start = parseTimeToMinutes(settings?.start || "") !== null
+    ? settings!.start
+    : DEFAULT_NIGHT_PRICING_SETTINGS.start;
+
+  const end = parseTimeToMinutes(settings?.end || "") !== null
+    ? settings!.end
+    : DEFAULT_NIGHT_PRICING_SETTINGS.end;
+
+  const rawMultiplier = Number(settings?.multiplier);
+  const multiplier =
+    Number.isFinite(rawMultiplier) && rawMultiplier > 0
+      ? rawMultiplier
+      : DEFAULT_NIGHT_PRICING_SETTINGS.multiplier;
+
+  return {
+    enabled: settings?.enabled ?? DEFAULT_NIGHT_PRICING_SETTINGS.enabled,
+    start,
+    end,
+    multiplier,
+  };
+}
+
+function isNightPricingActive(
+  settings: SpecialPricingSettings,
+  date = new Date()
+) {
+  if (!settings.enabled) return false;
+
+  const start = parseTimeToMinutes(settings.start);
+  const end = parseTimeToMinutes(settings.end);
+
+  if (start === null || end === null || start === end) return false;
+
+  const totalMinutes = date.getHours() * 60 + date.getMinutes();
+
+  if (start < end) {
+    return totalMinutes >= start && totalMinutes < end;
+  }
 
   return totalMinutes >= start || totalMinutes < end;
 }
@@ -252,6 +315,7 @@ function buildPricedCartSummary(
   cart: CartItem[],
   products: ProductRow[],
   promotions: Promotion[],
+  nightPricingSettings: SpecialPricingSettings,
   forceNightPricing = false
 ): PricedCartSummary {
   const productMap = new Map(
@@ -260,7 +324,8 @@ function buildPricedCartSummary(
   const cartOrderMap = new Map(
     cart.map((item, index) => [item.product_id, index])
   );
-  const nightPricingActive = forceNightPricing || isNightPricingActive();
+  const nightPricingActive =
+    forceNightPricing || isNightPricingActive(nightPricingSettings);
 
   const remainingQty = new Map<string, number>();
   for (const item of cart) {
@@ -381,7 +446,7 @@ function buildPricedCartSummary(
     const appliesNightPrice = nightPricingActive && isBeer;
 
     const unitPrice = appliesNightPrice
-      ? round4(basePrice * 1.35)
+      ? round4(basePrice * nightPricingSettings.multiplier)
       : round4(basePrice);
 
     const subtotal = round2(unitPrice * remaining);
@@ -425,6 +490,16 @@ function buildPricedCartSummary(
 
 export default function CajeroPOS() {
   const { user } = usePosAuth();
+  const { settings: appSettings } = useAppSettings();
+
+  const nightPricingSettings = useMemo(
+    () => normalizeNightPricingSettings(appSettings.specialPricing),
+    [appSettings.specialPricing]
+  );
+
+  const nightPricingPercent = round2(
+    (nightPricingSettings.multiplier - 1) * 100
+  );
 
   const role = (user as any)?.rol ?? "cajero";
   const isAdmin = role === "admin";
@@ -604,9 +679,16 @@ export default function CajeroPOS() {
       cart,
       products,
       promotions,
+      nightPricingSettings,
       adminNightPricingTestActive
     );
-  }, [cart, products, promotions, adminNightPricingTestActive]);
+  }, [
+    cart,
+    products,
+    promotions,
+    nightPricingSettings,
+    adminNightPricingTestActive,
+  ]);
 
   const total = useMemo(() => {
     return round2(
@@ -1750,8 +1832,10 @@ export default function CajeroPOS() {
             </label>
 
             <p className="mt-1 text-sm text-amber-800">
-              Solo visible para administrador. Simula horario 23:30 para revisar
-              precio nocturno de cerveza sin afectar cajeros, caja ni ventas.
+              Solo visible para administrador. Simula la configuración nocturna
+              actual ({nightPricingPercent >= 0 ? "+" : ""}
+              {nightPricingPercent}%) para revisar precios de cerveza sin afectar
+              cajeros, caja ni ventas.
             </p>
           </div>
         </div>
@@ -1766,8 +1850,12 @@ export default function CajeroPOS() {
       {pricedCartSummary.nightPricingActive && (
         <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-base text-amber-800 font-medium">
           {adminNightPricingTestActive
-            ? "Modo prueba nocturna activo: simulando horario 23:30 para validar precios de cerveza. No afecta cajeros, caja ni ventas."
-            : "Horario nocturno activo: la cerveza se cobra por pieza con incremento nocturno y no aplica promoción ni six."}
+            ? `Modo prueba nocturna activo: aplicando ${
+                nightPricingPercent >= 0 ? "+" : ""
+              }${nightPricingPercent}% a la cerveza. No afecta cajeros, caja ni ventas.`
+            : `Horario nocturno activo (${nightPricingSettings.start}–${nightPricingSettings.end}): la cerveza se cobra por pieza con ${
+                nightPricingPercent >= 0 ? "+" : ""
+              }${nightPricingPercent}% y no aplica promoción ni six.`}
         </div>
       )}
 
@@ -1862,7 +1950,7 @@ export default function CajeroPOS() {
 
               {adminNightPricingTestActive && p.category === "CERVEZA" && (
                 <div className="text-sm text-amber-700 font-semibold mt-2">
-                  Precio nocturno prueba: ${(p.price * 1.35).toFixed(2)}
+                  Precio nocturno prueba: ${(p.price * nightPricingSettings.multiplier).toFixed(2)}
                 </div>
               )}
 

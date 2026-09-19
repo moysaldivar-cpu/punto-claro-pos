@@ -84,6 +84,10 @@ export default function AppShell() {
                 Usuarios
               </NavLink>
 
+              <NavLink to="/configuracion" className={linkClass}>
+                Configuración
+              </NavLink>
+
               <NavLink to="/cierre-admin" className={linkClass}>
                 Cierre Admin
               </NavLink>
