@@ -56,7 +56,6 @@ type CloseTicketData = {
   userName: string;
   closedAt: string;
   exchangeRate: number;
-  expectedCash: number;
   realCash: number;
   cashDifference: number;
   realCard: number;
@@ -139,13 +138,13 @@ export default function CloseCashSession() {
       setError("");
 
       if (!storeId) {
-        setError("No hay sucursal activa para esta sesiÃ³n.");
+        setError("No hay sucursal activa para esta sesión.");
         setLoading(false);
         return;
       }
 
       if (!user?.id) {
-        setError("No hay usuario activo para esta sesiÃ³n.");
+        setError("No hay usuario activo para esta sesión.");
         setLoading(false);
         return;
       }
@@ -161,7 +160,7 @@ export default function CloseCashSession() {
         .maybeSingle();
 
       if (sessionError) {
-        setError("Error al cargar sesiÃ³n abierta: " + sessionError.message);
+        setError("Error al cargar sesión abierta: " + sessionError.message);
         setLoading(false);
         return;
       }
@@ -179,10 +178,10 @@ export default function CloseCashSession() {
 
         if (otherSession) {
           setError(
-            "Esta sucursal tiene un turno abierto por otro usuario. Para cerrar caja aquÃ­, debe ingresar el usuario que abriÃ³ ese turno."
+            "Esta sucursal tiene un turno abierto por otro usuario. Para cerrar caja aquí, debe ingresar el usuario que abrió ese turno."
           );
         } else {
-          setError("No hay sesiÃ³n abierta para este usuario en esta sucursal.");
+          setError("No hay sesión abierta para este usuario en esta sucursal.");
         }
 
         setLoading(false);
@@ -414,7 +413,7 @@ export default function CloseCashSession() {
 
     if (!currentSession) {
       setError(
-        "El turno ya no estÃ¡ abierto para este usuario en esta sucursal. Actualiza la pantalla y vuelve a intentar."
+        "El turno ya no está abierto para este usuario en esta sucursal. Actualiza la pantalla y vuelve a intentar."
       );
       setClosing(false);
       return;
@@ -425,6 +424,8 @@ export default function CloseCashSession() {
       p_real_cash: realCashNumber,
       p_real_card: realCardNumber,
       p_real_usd: realUsdNumber,
+      p_empty_corona_boxes: emptyCoronaBoxesNumber,
+      p_empty_heineken_boxes: emptyHeinekenBoxesNumber,
     });
 
     if (error) {
@@ -438,7 +439,6 @@ export default function CloseCashSession() {
       userName: String(user?.nombre || "Sin nombre").trim() || "Sin nombre",
       closedAt: new Date().toISOString(),
       exchangeRate,
-      expectedCash: Number(expectedCash.toFixed(2)),
       realCash: realCashNumber,
       cashDifference,
       realCard: realCardNumber,
@@ -453,7 +453,7 @@ export default function CloseCashSession() {
   }
 
   if (loading) {
-    return <div className="p-6 text-gray-500">Cargando informaciÃ³n del turno...</div>;
+    return <div className="p-6 text-gray-500">Cargando información del turno...</div>;
   }
 
   if (error && !closing) {
@@ -472,11 +472,6 @@ export default function CloseCashSession() {
                 <h2 className="text-lg font-semibold mb-4">Resumen del Turno</h2>
 
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Efectivo esperado</span>
-                    <span>{money(expectedCash)}</span>
-                  </div>
-
                   <div className="flex justify-between">
                     <span>Tarjeta esperada</span>
                     <span>{money(expectedCard)}</span>
@@ -574,15 +569,15 @@ export default function CloseCashSession() {
                 </div>
 
                 <div className="border rounded p-4 bg-gray-50">
-                  <h3 className="font-semibold mb-1">Cajas vacÃ­as</h3>
+                  <h3 className="font-semibold mb-1">Cajas vacías</h3>
                   <p className="text-xs text-gray-500 mb-3">
-                    Solo dato informativo. No afecta caja, inventario ni reportes.
+                    Solo dato informativo. No afecta caja ni inventario.
                   </p>
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm mb-1">
-                        Cajas vacÃ­as Corona
+                        Cajas vacías Corona
                       </label>
                       <input
                         type="number"
@@ -599,7 +594,7 @@ export default function CloseCashSession() {
 
                     <div>
                       <label className="block text-sm mb-1">
-                        Cajas vacÃ­as Heineken
+                        Cajas vacías Heineken
                       </label>
                       <input
                         type="number"
@@ -685,8 +680,8 @@ export default function CloseCashSession() {
 
                 {!hasCounts ? (
                   <div className="text-sm text-gray-600">
-                    No hubo conteo de turno para esta sesiÃ³n, por lo tanto no se puede
-                    calcular una comparaciÃ³n real de inventario en este cierre.
+                    No hubo conteo de turno para esta sesión, por lo tanto no se puede
+                    calcular una comparación real de inventario en este cierre.
                   </div>
                 ) : inventoryRowsWithDifferences.length === 0 ? (
                   <div className="text-sm text-gray-600">
@@ -923,11 +918,6 @@ function CloseTicketModal({
 
           <div className="space-y-1 text-sm mb-4">
             <div className="flex justify-between">
-              <span>Efectivo esperado</span>
-              <span>{money(ticket.expectedCash)}</span>
-            </div>
-
-            <div className="flex justify-between">
               <span>Efectivo declarado</span>
               <span>{money(ticket.realCash)}</span>
             </div>
@@ -959,28 +949,32 @@ function CloseTicketModal({
           </div>
 
           <div className="border-t border-b py-3 mb-4">
-            <div className="font-semibold mb-2 text-sm">Cajas vacÃ­as</div>
+            <div className="font-semibold mb-2 text-sm">Cajas vacías</div>
 
             {!hasEmptyBoxes ? (
               <div className="text-sm text-gray-500">
-                Sin cajas vacÃ­as capturadas.
+                Sin cajas vacías capturadas.
               </div>
             ) : (
               <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span>Corona</span>
-                  <span>{ticket.emptyCoronaBoxes}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
+                  <span className="min-w-0">Corona</span>
+                  <span className="min-w-[2.5rem] text-right font-semibold tabular-nums whitespace-nowrap">
+                    {ticket.emptyCoronaBoxes}
+                  </span>
                 </div>
 
-                <div className="flex justify-between">
-                  <span>Heineken</span>
-                  <span>{ticket.emptyHeinekenBoxes}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
+                  <span className="min-w-0">Heineken</span>
+                  <span className="min-w-[2.5rem] text-right font-semibold tabular-nums whitespace-nowrap">
+                    {ticket.emptyHeinekenBoxes}
+                  </span>
                 </div>
               </div>
             )}
 
             <div className="text-xs text-gray-500 mt-2">
-              Dato informativo. No afecta caja, inventario ni reportes.
+              Dato informativo. No afecta caja ni inventario.
             </div>
           </div>
 
