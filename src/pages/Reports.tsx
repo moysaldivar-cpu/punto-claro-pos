@@ -609,14 +609,14 @@ export default function Reports() {
     }
 
     if (storeFilter !== "all" && cashierFilter === "all") {
-      return `Modo actual: Sucursal â€” ${selectedStoreName}`;
+      return `Modo actual: Sucursal — ${selectedStoreName}`;
     }
 
     if (storeFilter === "all" && cashierFilter !== "all") {
-      return `Modo actual: Todas las sucursales / Cajero â€” ${cashierFilter}`;
+      return `Modo actual: Todas las sucursales / Cajero — ${cashierFilter}`;
     }
 
-    return `Modo actual: Sucursal â€” ${selectedStoreName} / Cajero â€” ${cashierFilter}`;
+    return `Modo actual: Sucursal — ${selectedStoreName} / Cajero — ${cashierFilter}`;
   }, [storeFilter, cashierFilter, selectedStoreName]);
 
   async function handleExport() {
@@ -907,8 +907,8 @@ export default function Reports() {
         <p className="text-sm mt-1">
           Los KPIs y reportes se calculan como ventas netas, descontando
           cancelaciones completas, devoluciones parciales, devoluciones completas
-          y merma segÃºn los filtros seleccionados. La diferencia entre venta y
-          recibido convierte cada pago en USD con el tipo de cambio de su sesiÃ³n.
+          y merma según los filtros seleccionados. La diferencia entre venta y
+          recibido convierte cada pago en USD con el tipo de cambio de su sesión.
         </p>
       </div>
 
