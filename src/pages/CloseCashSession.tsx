@@ -53,6 +53,7 @@ type CashDenominationCounts = Record<CashDenominationKey, string>;
 
 type CloseTicketData = {
   sessionId: string;
+  userName: string;
   closedAt: string;
   exchangeRate: number;
   expectedCash: number;
@@ -138,13 +139,13 @@ export default function CloseCashSession() {
       setError("");
 
       if (!storeId) {
-        setError("No hay sucursal activa para esta sesión.");
+        setError("No hay sucursal activa para esta sesiÃ³n.");
         setLoading(false);
         return;
       }
 
       if (!user?.id) {
-        setError("No hay usuario activo para esta sesión.");
+        setError("No hay usuario activo para esta sesiÃ³n.");
         setLoading(false);
         return;
       }
@@ -160,7 +161,7 @@ export default function CloseCashSession() {
         .maybeSingle();
 
       if (sessionError) {
-        setError("Error al cargar sesión abierta: " + sessionError.message);
+        setError("Error al cargar sesiÃ³n abierta: " + sessionError.message);
         setLoading(false);
         return;
       }
@@ -178,10 +179,10 @@ export default function CloseCashSession() {
 
         if (otherSession) {
           setError(
-            "Esta sucursal tiene un turno abierto por otro usuario. Para cerrar caja aquí, debe ingresar el usuario que abrió ese turno."
+            "Esta sucursal tiene un turno abierto por otro usuario. Para cerrar caja aquÃ­, debe ingresar el usuario que abriÃ³ ese turno."
           );
         } else {
-          setError("No hay sesión abierta para este usuario en esta sucursal.");
+          setError("No hay sesiÃ³n abierta para este usuario en esta sucursal.");
         }
 
         setLoading(false);
@@ -413,7 +414,7 @@ export default function CloseCashSession() {
 
     if (!currentSession) {
       setError(
-        "El turno ya no está abierto para este usuario en esta sucursal. Actualiza la pantalla y vuelve a intentar."
+        "El turno ya no estÃ¡ abierto para este usuario en esta sucursal. Actualiza la pantalla y vuelve a intentar."
       );
       setClosing(false);
       return;
@@ -434,6 +435,7 @@ export default function CloseCashSession() {
 
     setCloseTicket({
       sessionId,
+      userName: String(user?.nombre || "Sin nombre").trim() || "Sin nombre",
       closedAt: new Date().toISOString(),
       exchangeRate,
       expectedCash: Number(expectedCash.toFixed(2)),
@@ -451,7 +453,7 @@ export default function CloseCashSession() {
   }
 
   if (loading) {
-    return <div className="p-6 text-gray-500">Cargando información del turno...</div>;
+    return <div className="p-6 text-gray-500">Cargando informaciÃ³n del turno...</div>;
   }
 
   if (error && !closing) {
@@ -572,7 +574,7 @@ export default function CloseCashSession() {
                 </div>
 
                 <div className="border rounded p-4 bg-gray-50">
-                  <h3 className="font-semibold mb-1">Cajas vacías</h3>
+                  <h3 className="font-semibold mb-1">Cajas vacÃ­as</h3>
                   <p className="text-xs text-gray-500 mb-3">
                     Solo dato informativo. No afecta caja, inventario ni reportes.
                   </p>
@@ -580,7 +582,7 @@ export default function CloseCashSession() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm mb-1">
-                        Cajas vacías Corona
+                        Cajas vacÃ­as Corona
                       </label>
                       <input
                         type="number"
@@ -597,7 +599,7 @@ export default function CloseCashSession() {
 
                     <div>
                       <label className="block text-sm mb-1">
-                        Cajas vacías Heineken
+                        Cajas vacÃ­as Heineken
                       </label>
                       <input
                         type="number"
@@ -683,8 +685,8 @@ export default function CloseCashSession() {
 
                 {!hasCounts ? (
                   <div className="text-sm text-gray-600">
-                    No hubo conteo de turno para esta sesión, por lo tanto no se puede
-                    calcular una comparación real de inventario en este cierre.
+                    No hubo conteo de turno para esta sesiÃ³n, por lo tanto no se puede
+                    calcular una comparaciÃ³n real de inventario en este cierre.
                   </div>
                 ) : inventoryRowsWithDifferences.length === 0 ? (
                   <div className="text-sm text-gray-600">
@@ -781,12 +783,6 @@ function CloseTicketModal({
 
   const hasEmptyBoxes =
     ticket.emptyCoronaBoxes > 0 || ticket.emptyHeinekenBoxes > 0;
-
-  const displaySession =
-    String(ticket.sessionId || "")
-      .replace(/-/g, "")
-      .slice(0, 8)
-      .toUpperCase() || "N/A";
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -894,7 +890,7 @@ function CloseTicketModal({
 
           <div className="mb-4 text-sm space-y-1">
             <div>
-              <span className="font-semibold">Sesión:</span> {displaySession}
+              <span className="font-semibold">Usuario:</span> {ticket.userName}
             </div>
             <div>
               <span className="font-semibold">Fecha:</span>{" "}
@@ -963,11 +959,11 @@ function CloseTicketModal({
           </div>
 
           <div className="border-t border-b py-3 mb-4">
-            <div className="font-semibold mb-2 text-sm">Cajas vacías</div>
+            <div className="font-semibold mb-2 text-sm">Cajas vacÃ­as</div>
 
             {!hasEmptyBoxes ? (
               <div className="text-sm text-gray-500">
-                Sin cajas vacías capturadas.
+                Sin cajas vacÃ­as capturadas.
               </div>
             ) : (
               <div className="space-y-1 text-sm">
