@@ -61,6 +61,23 @@ type LossRow = {
   cost: number;
 };
 
+type SaleAdjustmentReportRow = {
+  adjustment_id: string;
+  created_at: string;
+  sale_id: string;
+  folio: string;
+  store_id: string;
+  store_name: string;
+  adjustment_type: "cancel_full" | "return_partial";
+  reason: string;
+  original_sale_total: number;
+  total_refund_mxn: number;
+  refund_cash_mxn: number;
+  refund_card_mxn: number;
+  refund_usd: number;
+  created_by_name: string;
+};
+
 type ReportFilters = {
   fromValue: string;
   toValue: string;
@@ -93,16 +110,21 @@ export default function Reports() {
   const [storeRows, setStoreRows] = useState<StoreReportRow[]>([]);
   const [cashierRows, setCashierRows] = useState<CashierReportRow[]>([]);
   const [lossRows, setLossRows] = useState<LossRow[]>([]);
+  const [saleAdjustmentRows, setSaleAdjustmentRows] = useState<
+    SaleAdjustmentReportRow[]
+  >([]);
 
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [loadingStores, setLoadingStores] = useState(false);
   const [loadingCashiers, setLoadingCashiers] = useState(false);
   const [loadingLoss, setLoadingLoss] = useState(false);
+  const [loadingSaleAdjustments, setLoadingSaleAdjustments] = useState(false);
 
   const [showProducts, setShowProducts] = useState(false);
   const [showStores, setShowStores] = useState(false);
   const [showCashiers, setShowCashiers] = useState(false);
   const [showLoss, setShowLoss] = useState(false);
+  const [showSaleAdjustments, setShowSaleAdjustments] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -376,6 +398,51 @@ export default function Reports() {
     });
   }
 
+  async function fetchSaleAdjustmentRows({
+    fromValue,
+    toValue,
+    storeIdValue,
+  }: {
+    fromValue: string;
+    toValue: string;
+    storeIdValue: string;
+  }): Promise<SaleAdjustmentReportRow[]> {
+    const { data, error } = await supabase.rpc(
+      "get_report_sale_adjustments_filtered",
+      {
+        p_from: new Date(fromValue).toISOString(),
+        p_to: new Date(toValue).toISOString(),
+        p_store_id: storeIdValue === "all" ? null : storeIdValue,
+        p_adjustment_type: null,
+      }
+    );
+
+    if (error) {
+      console.error(error);
+      return [];
+    }
+
+    return ((data || []) as any[]).map((row) => ({
+      adjustment_id: String(row.adjustment_id || ""),
+      created_at: String(row.created_at || ""),
+      sale_id: String(row.sale_id || ""),
+      folio: String(row.folio || "Sin folio").trim(),
+      store_id: String(row.store_id || ""),
+      store_name: String(row.store_name || "Sucursal").trim(),
+      adjustment_type:
+        row.adjustment_type === "cancel_full"
+          ? "cancel_full"
+          : "return_partial",
+      reason: String(row.reason || "").trim(),
+      original_sale_total: Number(row.original_sale_total || 0),
+      total_refund_mxn: Number(row.total_refund_mxn || 0),
+      refund_cash_mxn: Number(row.refund_cash_mxn || 0),
+      refund_card_mxn: Number(row.refund_card_mxn || 0),
+      refund_usd: Number(row.refund_usd || 0),
+      created_by_name: String(row.created_by_name || "Sin nombre").trim(),
+    }));
+  }
+
   async function loadKpisData() {
     if (!from || !to) return;
 
@@ -484,6 +551,27 @@ export default function Reports() {
     setLoadingLoss(false);
   }
 
+  async function loadSaleAdjustmentsReport() {
+    if (showSaleAdjustments) {
+      setShowSaleAdjustments(false);
+      return;
+    }
+
+    if (!from || !to) return;
+
+    setLoadingSaleAdjustments(true);
+
+    const rows = await fetchSaleAdjustmentRows({
+      fromValue: from,
+      toValue: to,
+      storeIdValue: storeFilter,
+    });
+
+    setSaleAdjustmentRows(rows);
+    setShowSaleAdjustments(true);
+    setLoadingSaleAdjustments(false);
+  }
+
   const kpis = useMemo(() => {
     const ventas = productRows.reduce(
       (a, b) => a + Number(b.total_sales || 0),
@@ -521,20 +609,21 @@ export default function Reports() {
     }
 
     if (storeFilter !== "all" && cashierFilter === "all") {
-      return `Modo actual: Sucursal — ${selectedStoreName}`;
+      return `Modo actual: Sucursal â€” ${selectedStoreName}`;
     }
 
     if (storeFilter === "all" && cashierFilter !== "all") {
-      return `Modo actual: Todas las sucursales / Cajero — ${cashierFilter}`;
+      return `Modo actual: Todas las sucursales / Cajero â€” ${cashierFilter}`;
     }
 
-    return `Modo actual: Sucursal — ${selectedStoreName} / Cajero — ${cashierFilter}`;
+    return `Modo actual: Sucursal â€” ${selectedStoreName} / Cajero â€” ${cashierFilter}`;
   }, [storeFilter, cashierFilter, selectedStoreName]);
 
   async function handleExport() {
     if (!from || !to) return;
 
-    const [products, storesReport, cashiersReport, losses] = await Promise.all([
+    const [products, storesReport, cashiersReport, losses, adjustments] =
+      await Promise.all([
       fetchProductRows({
         fromValue: from,
         toValue: to,
@@ -554,6 +643,11 @@ export default function Reports() {
         cashierValue: cashierFilter,
       }),
       fetchLossRows({
+        fromValue: from,
+        toValue: to,
+        storeIdValue: storeFilter,
+      }),
+      fetchSaleAdjustmentRows({
         fromValue: from,
         toValue: to,
         storeIdValue: storeFilter,
@@ -595,6 +689,20 @@ export default function Reports() {
         Motivo: l.reason,
         Sucursal: l.store_name,
         Fecha: new Date(l.created_at).toLocaleString(),
+      })),
+      ...adjustments.map((a) => ({
+        Seccion: "Cancelaciones y Devoluciones",
+        Folio: a.folio,
+        Tipo: getAdjustmentTypeLabel(a.adjustment_type),
+        Total_Original_MXN: a.original_sale_total,
+        Importe_Devuelto_MXN: a.total_refund_mxn,
+        Efectivo_Devuelto_MXN: a.refund_cash_mxn,
+        Tarjeta_Devuelta_MXN: a.refund_card_mxn,
+        USD_Devueltos: a.refund_usd,
+        Motivo: a.reason,
+        Sucursal: a.store_name,
+        Realizado_Por: a.created_by_name,
+        Fecha: new Date(a.created_at).toLocaleString(),
       })),
     ];
 
@@ -691,6 +799,33 @@ export default function Reports() {
     );
   }
 
+  async function handleExportSaleAdjustments() {
+    if (!from || !to) return;
+
+    const rows = await fetchSaleAdjustmentRows({
+      fromValue: from,
+      toValue: to,
+      storeIdValue: storeFilter,
+    });
+
+    downloadExcel(
+      "cancelaciones_y_devoluciones.xlsx",
+      rows.map((a) => ({
+        Folio: a.folio,
+        Tipo: getAdjustmentTypeLabel(a.adjustment_type),
+        Total_Original_MXN: a.original_sale_total,
+        Importe_Devuelto_MXN: a.total_refund_mxn,
+        Efectivo_Devuelto_MXN: a.refund_cash_mxn,
+        Tarjeta_Devuelta_MXN: a.refund_card_mxn,
+        USD_Devueltos: a.refund_usd,
+        Motivo: a.reason,
+        Sucursal: a.store_name,
+        Realizado_Por: a.created_by_name,
+        Fecha: new Date(a.created_at).toLocaleString(),
+      }))
+    );
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Reportes</h1>
@@ -772,8 +907,8 @@ export default function Reports() {
         <p className="text-sm mt-1">
           Los KPIs y reportes se calculan como ventas netas, descontando
           cancelaciones completas, devoluciones parciales, devoluciones completas
-          y merma según los filtros seleccionados. La diferencia entre venta y
-          recibido convierte cada pago en USD con el tipo de cambio de su sesión.
+          y merma segÃºn los filtros seleccionados. La diferencia entre venta y
+          recibido convierte cada pago en USD con el tipo de cambio de su sesiÃ³n.
         </p>
       </div>
 
@@ -805,6 +940,19 @@ export default function Reports() {
 
       {showCashiers && (
         <TableCashiers rows={cashierRows} loading={loadingCashiers} />
+      )}
+
+      <ReportHeader
+        title="Cancelaciones y Devoluciones"
+        onConsult={loadSaleAdjustmentsReport}
+        onExport={handleExportSaleAdjustments}
+      />
+
+      {showSaleAdjustments && (
+        <TableSaleAdjustments
+          rows={saleAdjustmentRows}
+          loading={loadingSaleAdjustments}
+        />
       )}
 
       <ReportHeader
@@ -1080,6 +1228,78 @@ function TableLoss({
       </table>
     </div>
   );
+}
+
+function TableSaleAdjustments({
+  rows,
+  loading,
+}: {
+  rows: SaleAdjustmentReportRow[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="bg-white p-4 rounded shadow mb-6">
+        <p>Cargando...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
+      {rows.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          No hay cancelaciones ni devoluciones en el periodo seleccionado.
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="text-center">Folio</th>
+              <th className="text-center">Tipo</th>
+              <th className="text-center">Total original</th>
+              <th className="text-center">Importe devuelto</th>
+              <th className="text-center">Motivo</th>
+              <th className="text-center">Sucursal</th>
+              <th className="text-center">Realizado por</th>
+              <th className="text-center">Fecha</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.adjustment_id}>
+                <td className="text-center">{r.folio}</td>
+                <td className="text-center">
+                  {getAdjustmentTypeLabel(r.adjustment_type)}
+                </td>
+                <td className="text-center">
+                  ${Number(r.original_sale_total || 0).toFixed(2)}
+                </td>
+                <td className="text-center font-semibold">
+                  ${Number(r.total_refund_mxn || 0).toFixed(2)}
+                </td>
+                <td className="text-center">{r.reason || "Sin motivo"}</td>
+                <td className="text-center">{r.store_name}</td>
+                <td className="text-center">{r.created_by_name}</td>
+                <td className="text-center">
+                  {new Date(r.created_at).toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function getAdjustmentTypeLabel(
+  value: SaleAdjustmentReportRow["adjustment_type"]
+) {
+  return value === "cancel_full"
+    ? "Cancelación completa"
+    : "Devolución parcial";
 }
 
 function getDifferenceLabel(value: number) {
