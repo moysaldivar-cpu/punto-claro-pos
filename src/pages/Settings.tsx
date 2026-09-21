@@ -5,19 +5,20 @@ type SpecialPricing = {
   enabled: boolean;
   start: string;
   end: string;
-  percent: number | "";
+  amount: number | "";
 };
 
 export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const [usdRate, setUsdRate] = useState<number | "">("");
   const [specialPricing, setSpecialPricing] = useState<SpecialPricing>({
     enabled: false,
     start: "",
     end: "",
-    percent: "",
+    amount: "",
   });
 
   /* ===============================
@@ -44,13 +45,13 @@ export default function Settings() {
         }
 
         if (row.key === "special_pricing") {
-          const multiplier = Number(row.value.multiplier ?? 1);
+          const amount = Number(row.value.amount ?? 0);
 
           setSpecialPricing({
             enabled: row.value.enabled ?? false,
             start: row.value.start ?? "",
             end: row.value.end ?? "",
-            percent: Number(((multiplier - 1) * 100).toFixed(2)),
+            amount,
           });
         }
       }
@@ -66,6 +67,7 @@ export default function Settings() {
   =============================== */
   const saveSettings = async () => {
     setError(null);
+    setSuccess(null);
 
     const operations = [
       supabase.from("app_settings").upsert({
@@ -78,7 +80,7 @@ export default function Settings() {
           enabled: specialPricing.enabled,
           start: specialPricing.start,
           end: specialPricing.end,
-          multiplier: 1 + Number(specialPricing.percent) / 100,
+          amount: Number(specialPricing.amount),
         },
       }),
     ];
@@ -88,7 +90,10 @@ export default function Settings() {
 
     if (hasError) {
       setError("No se pudo guardar la configuración.");
+      return;
     }
+
+    setSuccess("Configuración guardada correctamente.");
   };
 
   /* ===============================
@@ -104,6 +109,12 @@ export default function Settings() {
       {error && (
         <div className="mb-4 rounded bg-red-100 text-red-700 p-3">
           {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-4 rounded bg-green-100 text-green-700 p-3">
+          {success}
         </div>
       )}
 
@@ -184,15 +195,15 @@ export default function Settings() {
             </div>
 
             <label className="block text-sm mb-1">
-              Incremento nocturno (%)
+              Incremento nocturno ($)
             </label>
             <input
               type="number"
-              value={specialPricing.percent}
+              value={specialPricing.amount}
               onChange={(e) =>
                 setSpecialPricing({
                   ...specialPricing,
-                  percent:
+                  amount:
                     e.target.value === "" ? "" : Number(e.target.value),
                 })
               }
