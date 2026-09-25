@@ -90,6 +90,18 @@ type EmptyBoxesReportRow = {
   total_empty_boxes: number;
 };
 
+type InventoryDifferenceReportRow = {
+  store_id: string;
+  store_name: string;
+  cash_session_id: string;
+  session_opened_at: string;
+  product_id: string;
+  product_name: string;
+  system_stock: number;
+  counted_stock: number;
+  difference: number;
+};
+
 type ReportFilters = {
   fromValue: string;
   toValue: string;
@@ -126,6 +138,9 @@ export default function Reports() {
     SaleAdjustmentReportRow[]
   >([]);
   const [emptyBoxesRows, setEmptyBoxesRows] = useState<EmptyBoxesReportRow[]>([]);
+  const [inventoryDifferenceRows, setInventoryDifferenceRows] = useState<
+    InventoryDifferenceReportRow[]
+  >([]);
 
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [loadingStores, setLoadingStores] = useState(false);
@@ -133,6 +148,7 @@ export default function Reports() {
   const [loadingLoss, setLoadingLoss] = useState(false);
   const [loadingSaleAdjustments, setLoadingSaleAdjustments] = useState(false);
   const [loadingEmptyBoxes, setLoadingEmptyBoxes] = useState(false);
+  const [loadingInventoryDifferences, setLoadingInventoryDifferences] = useState(false);
 
   const [showProducts, setShowProducts] = useState(false);
   const [showStores, setShowStores] = useState(false);
@@ -140,6 +156,7 @@ export default function Reports() {
   const [showLoss, setShowLoss] = useState(false);
   const [showSaleAdjustments, setShowSaleAdjustments] = useState(false);
   const [showEmptyBoxes, setShowEmptyBoxes] = useState(false);
+  const [showInventoryDifferences, setShowInventoryDifferences] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -494,6 +511,34 @@ export default function Reports() {
     }));
   }
 
+  async function fetchInventoryDifferenceRows(
+    storeIdValue: string
+  ): Promise<InventoryDifferenceReportRow[]> {
+    const { data, error } = await supabase.rpc(
+      "get_report_inventory_differences",
+      {
+        p_store_id: storeIdValue === "all" ? null : storeIdValue,
+      }
+    );
+
+    if (error) {
+      console.error(error);
+      return [];
+    }
+
+    return ((data || []) as any[]).map((row) => ({
+      store_id: String(row.store_id || ""),
+      store_name: String(row.store_name || "Sucursal").trim(),
+      cash_session_id: String(row.cash_session_id || ""),
+      session_opened_at: String(row.session_opened_at || ""),
+      product_id: String(row.product_id || ""),
+      product_name: String(row.product_name || "Producto").trim(),
+      system_stock: Number(row.system_stock || 0),
+      counted_stock: Number(row.counted_stock || 0),
+      difference: Number(row.difference || 0),
+    }));
+  }
+
   async function loadKpisData() {
     if (!from || !to) return;
 
@@ -642,6 +687,21 @@ export default function Reports() {
     setEmptyBoxesRows(rows);
     setShowEmptyBoxes(true);
     setLoadingEmptyBoxes(false);
+  }
+
+  async function loadInventoryDifferencesReport() {
+    if (showInventoryDifferences) {
+      setShowInventoryDifferences(false);
+      return;
+    }
+
+    setLoadingInventoryDifferences(true);
+
+    const rows = await fetchInventoryDifferenceRows(storeFilter);
+
+    setInventoryDifferenceRows(rows);
+    setShowInventoryDifferences(true);
+    setLoadingInventoryDifferences(false);
   }
 
   const kpis = useMemo(() => {
@@ -940,6 +1000,21 @@ export default function Reports() {
     );
   }
 
+  async function handleExportInventoryDifferences() {
+    const rows = await fetchInventoryDifferenceRows(storeFilter);
+
+    downloadExcel(
+      "diferencias_inventario.xlsx",
+      rows.map((r) => ({
+        Sucursal: r.store_name,
+        Producto: r.product_name,
+        Sistema: r.system_stock,
+        Conteo: r.counted_stock,
+        Diferencia: r.difference,
+      }))
+    );
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Reportes</h1>
@@ -1077,6 +1152,19 @@ export default function Reports() {
 
       {showEmptyBoxes && (
         <TableEmptyBoxes rows={emptyBoxesRows} loading={loadingEmptyBoxes} />
+      )}
+
+      <ReportHeader
+        title="Diferencias de Inventario"
+        onConsult={loadInventoryDifferencesReport}
+        onExport={handleExportInventoryDifferences}
+      />
+
+      {showInventoryDifferences && (
+        <TableInventoryDifferences
+          rows={inventoryDifferenceRows}
+          loading={loadingInventoryDifferences}
+        />
       )}
 
       <ReportHeader
@@ -1431,6 +1519,62 @@ function TableEmptyBoxes({
             </tfoot>
           </table>
         </>
+      )}
+    </div>
+  );
+}
+
+function TableInventoryDifferences({
+  rows,
+  loading,
+}: {
+  rows: InventoryDifferenceReportRow[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="bg-white p-4 rounded shadow mb-6">
+        <p>Cargando...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
+      {rows.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          No hay diferencias de inventario para mostrar.
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="text-center">Sucursal</th>
+              <th className="text-center">Producto</th>
+              <th className="text-center">Sistema</th>
+              <th className="text-center">Conteo</th>
+              <th className="text-center">Diferencia</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((r) => (
+              <tr key={`${r.cash_session_id}-${r.product_id}`}>
+                <td className="text-center">{r.store_name}</td>
+                <td className="text-center">{r.product_name}</td>
+                <td className="text-center">{r.system_stock}</td>
+                <td className="text-center">{r.counted_stock}</td>
+                <td
+                  className={`text-center font-semibold ${
+                    r.difference > 0 ? "text-red-600" : "text-blue-600"
+                  }`}
+                >
+                  {r.difference}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

@@ -57,7 +57,6 @@ type CloseTicketData = {
   closedAt: string;
   exchangeRate: number;
   realCash: number;
-  cashDifference: number;
   realCard: number;
   realUsd: number;
   declaredGeneral: number;
@@ -110,7 +109,6 @@ export default function CloseCashSession() {
 
   const role = (user as any)?.rol ?? "cajero";
   const isAdmin = role === "admin";
-  const showCashDifferences = role !== "cajero";
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number>(0);
@@ -285,21 +283,12 @@ export default function CloseCashSession() {
   const emptyCoronaBoxesNumber = Number(emptyCoronaBoxes) || 0;
   const emptyHeinekenBoxesNumber = Number(emptyHeinekenBoxes) || 0;
 
-  const expectedCash = totals?.total_cash_mxn || 0;
   const expectedCard = totals?.total_card_mxn || 0;
   const expectedUsd = totals?.total_usd || 0;
   const expectedGeneral = totals?.total_general_mxn || 0;
 
-  const cashDifference = Number((realCashNumber - expectedCash).toFixed(2));
-  const cardDifference = Number((realCardNumber - expectedCard).toFixed(2));
-  const usdDifference = Number((realUsdNumber - expectedUsd).toFixed(4));
-
   const declaredGeneral = Number(
     (realCashNumber + realCardNumber + realUsdNumber * exchangeRate).toFixed(2)
-  );
-
-  const generalDifference = Number(
-    (declaredGeneral - expectedGeneral).toFixed(2)
   );
 
   function money(value: number) {
@@ -308,26 +297,6 @@ export default function CloseCashSession() {
 
   function usd(value: number) {
     return `$${Number(value || 0).toFixed(4)}`;
-  }
-
-  function diffClass(value: number) {
-    if (value === 0) return "text-green-600";
-    if (value > 0) return "text-blue-600";
-    return "text-red-600";
-  }
-
-  function cashDifferenceLabel(value: number) {
-    const difference = Number(value.toFixed(2));
-
-    if (difference === 0) {
-      return "Cuadrado $0.00";
-    }
-
-    if (difference > 0) {
-      return `Sobrante ${money(difference)}`;
-    }
-
-    return `Faltante ${money(Math.abs(difference))}`;
   }
 
   function capturedAmountClass(value: number) {
@@ -440,7 +409,6 @@ export default function CloseCashSession() {
       closedAt: new Date().toISOString(),
       exchangeRate,
       realCash: realCashNumber,
-      cashDifference,
       realCard: realCardNumber,
       realUsd: realUsdNumber,
       declaredGeneral: Number(declaredGeneral.toFixed(2)),
@@ -633,47 +601,6 @@ export default function CloseCashSession() {
               </div>
             </div>
 
-            {showCashDifferences && (
-              <div className="bg-white shadow rounded p-6 mb-6">
-                <h2 className="text-lg font-semibold mb-4">Diferencias de caja</h2>
-
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Resultado de efectivo</span>
-                    <span className={diffClass(cashDifference)}>
-                      {cashDifferenceLabel(cashDifference)}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Diferencia tarjeta</span>
-                    <span className={diffClass(cardDifference)}>
-                      {money(cardDifference)}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Diferencia USD</span>
-                    <span className={diffClass(usdDifference)}>
-                      {usd(usdDifference)}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Total declarado (MXN)</span>
-                    <span>{money(declaredGeneral)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                    <span>Diferencia general (MXN)</span>
-                    <span className={diffClass(generalDifference)}>
-                      {money(generalDifference)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {isAdmin && (
               <div className="bg-white shadow rounded p-6 mb-6">
                 <h2 className="text-lg font-semibold mb-4">Diferencias de Inventario</h2>
@@ -760,20 +687,6 @@ function CloseTicketModal({
 
   function usd(value: number) {
     return `$${Number(value || 0).toFixed(4)}`;
-  }
-
-  function cashDifferenceLabel(value: number) {
-    const difference = Number(value.toFixed(2));
-
-    if (difference === 0) {
-      return "Cuadrado $0.00";
-    }
-
-    if (difference > 0) {
-      return `Sobrante ${money(difference)}`;
-    }
-
-    return `Faltante ${money(Math.abs(difference))}`;
   }
 
   const hasEmptyBoxes =
@@ -920,11 +833,6 @@ function CloseTicketModal({
             <div className="flex justify-between">
               <span>Efectivo declarado</span>
               <span>{money(ticket.realCash)}</span>
-            </div>
-
-            <div className="flex justify-between font-bold pt-2">
-              <span>Resultado efectivo</span>
-              <span>{cashDifferenceLabel(ticket.cashDifference)}</span>
             </div>
 
             <div className="flex justify-between">
