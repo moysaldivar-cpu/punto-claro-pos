@@ -865,18 +865,11 @@ function CloseTicketModal({
               </div>
             ) : (
               <div className="space-y-1 text-sm">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
-                  <span className="min-w-0">Corona</span>
-                  <span className="min-w-[2.5rem] text-right font-semibold tabular-nums whitespace-nowrap">
-                    {ticket.emptyCoronaBoxes}
-                  </span>
+                <div className="font-semibold">
+                  Corona: {ticket.emptyCoronaBoxes}
                 </div>
-
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
-                  <span className="min-w-0">Heineken</span>
-                  <span className="min-w-[2.5rem] text-right font-semibold tabular-nums whitespace-nowrap">
-                    {ticket.emptyHeinekenBoxes}
-                  </span>
+                <div className="font-semibold">
+                  Heineken: {ticket.emptyHeinekenBoxes}
                 </div>
               </div>
             )}

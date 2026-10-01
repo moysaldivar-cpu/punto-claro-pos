@@ -102,6 +102,19 @@ type InventoryDifferenceReportRow = {
   difference: number;
 };
 
+type InventoryValuationReportRow = {
+  inventory_id: string;
+  store_id: string;
+  store_name: string;
+  product_id: string;
+  product_name: string;
+  pieces: number;
+  unit_cost: number;
+  cost_value: number;
+  sale_price: number;
+  sale_value: number;
+};
+
 type ReportFilters = {
   fromValue: string;
   toValue: string;
@@ -141,6 +154,9 @@ export default function Reports() {
   const [inventoryDifferenceRows, setInventoryDifferenceRows] = useState<
     InventoryDifferenceReportRow[]
   >([]);
+  const [inventoryValuationRows, setInventoryValuationRows] = useState<
+    InventoryValuationReportRow[]
+  >([]);
 
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [loadingStores, setLoadingStores] = useState(false);
@@ -149,6 +165,7 @@ export default function Reports() {
   const [loadingSaleAdjustments, setLoadingSaleAdjustments] = useState(false);
   const [loadingEmptyBoxes, setLoadingEmptyBoxes] = useState(false);
   const [loadingInventoryDifferences, setLoadingInventoryDifferences] = useState(false);
+  const [loadingInventoryValuation, setLoadingInventoryValuation] = useState(false);
 
   const [showProducts, setShowProducts] = useState(false);
   const [showStores, setShowStores] = useState(false);
@@ -157,6 +174,7 @@ export default function Reports() {
   const [showSaleAdjustments, setShowSaleAdjustments] = useState(false);
   const [showEmptyBoxes, setShowEmptyBoxes] = useState(false);
   const [showInventoryDifferences, setShowInventoryDifferences] = useState(false);
+  const [showInventoryValuation, setShowInventoryValuation] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -539,6 +557,72 @@ export default function Reports() {
     }));
   }
 
+  async function fetchInventoryValuationRows(
+    storeIdValue: string
+  ): Promise<InventoryValuationReportRow[]> {
+    let query = supabase
+      .from("inventory")
+      .select(`
+        id,
+        product_id,
+        store_id,
+        stock,
+        is_active,
+        products!inner (
+          name,
+          cost,
+          price
+        ),
+        pos_stores (
+          name
+        )
+      `)
+      .eq("is_active", true)
+      .gt("stock", 0);
+
+    if (storeIdValue !== "all") {
+      query = query.eq("store_id", storeIdValue);
+    }
+
+    const { data, error } = await query.order("store_id", {
+      ascending: true,
+    });
+
+    if (error) {
+      console.error("Error loading inventory valuation report:", error);
+      return [];
+    }
+
+    return ((data || []) as any[])
+      .map((row) => {
+        const pieces = Number(row.stock || 0);
+        const unitCost = Number(row.products?.cost || 0);
+        const salePrice = Number(row.products?.price || 0);
+
+        return {
+          inventory_id: String(row.id || ""),
+          store_id: String(row.store_id || ""),
+          store_name: String(row.pos_stores?.name || "Sucursal").trim(),
+          product_id: String(row.product_id || ""),
+          product_name: String(row.products?.name || "Producto").trim(),
+          pieces,
+          unit_cost: unitCost,
+          cost_value: Number((pieces * unitCost).toFixed(2)),
+          sale_price: salePrice,
+          sale_value: Number((pieces * salePrice).toFixed(2)),
+        };
+      })
+      .sort((a, b) => {
+        const storeComparison = a.store_name.localeCompare(b.store_name);
+
+        if (storeComparison !== 0) {
+          return storeComparison;
+        }
+
+        return a.product_name.localeCompare(b.product_name);
+      });
+  }
+
   async function loadKpisData() {
     if (!from || !to) return;
 
@@ -702,6 +786,21 @@ export default function Reports() {
     setInventoryDifferenceRows(rows);
     setShowInventoryDifferences(true);
     setLoadingInventoryDifferences(false);
+  }
+
+  async function loadInventoryValuationReport() {
+    if (showInventoryValuation) {
+      setShowInventoryValuation(false);
+      return;
+    }
+
+    setLoadingInventoryValuation(true);
+
+    const rows = await fetchInventoryValuationRows(storeFilter);
+
+    setInventoryValuationRows(rows);
+    setShowInventoryValuation(true);
+    setLoadingInventoryValuation(false);
   }
 
   const kpis = useMemo(() => {
@@ -1015,6 +1114,44 @@ export default function Reports() {
     );
   }
 
+  async function handleExportInventoryValuation() {
+    const rows = await fetchInventoryValuationRows(storeFilter);
+
+    const totalPieces = rows.reduce((sum, row) => sum + Number(row.pieces || 0), 0);
+    const totalCostValue = rows.reduce(
+      (sum, row) => sum + Number(row.cost_value || 0),
+      0
+    );
+    const totalSaleValue = rows.reduce(
+      (sum, row) => sum + Number(row.sale_value || 0),
+      0
+    );
+
+    downloadExcel(
+      "valorizacion_inventario.xlsx",
+      [
+        ...rows.map((r) => ({
+          Sucursal: r.store_name,
+          Producto: r.product_name,
+          Piezas: r.pieces,
+          Costo_Unitario: r.unit_cost,
+          Valor_a_Costo: r.cost_value,
+          Precio_Venta: r.sale_price,
+          Valor_a_Venta: r.sale_value,
+        })),
+        {
+          Sucursal: "TOTAL",
+          Producto: "",
+          Piezas: totalPieces,
+          Costo_Unitario: "",
+          Valor_a_Costo: Number(totalCostValue.toFixed(2)),
+          Precio_Venta: "",
+          Valor_a_Venta: Number(totalSaleValue.toFixed(2)),
+        },
+      ]
+    );
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">Reportes</h1>
@@ -1164,6 +1301,19 @@ export default function Reports() {
         <TableInventoryDifferences
           rows={inventoryDifferenceRows}
           loading={loadingInventoryDifferences}
+        />
+      )}
+
+      <ReportHeader
+        title="Valorización de Inventario"
+        onConsult={loadInventoryValuationReport}
+        onExport={handleExportInventoryValuation}
+      />
+
+      {showInventoryValuation && (
+        <TableInventoryValuation
+          rows={inventoryValuationRows}
+          loading={loadingInventoryValuation}
         />
       )}
 
@@ -1574,6 +1724,86 @@ function TableInventoryDifferences({
               </tr>
             ))}
           </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function TableInventoryValuation({
+  rows,
+  loading,
+}: {
+  rows: InventoryValuationReportRow[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="bg-white p-4 rounded shadow mb-6">
+        <p>Cargando...</p>
+      </div>
+    );
+  }
+
+  const totalPieces = rows.reduce(
+    (sum, row) => sum + Number(row.pieces || 0),
+    0
+  );
+  const totalCostValue = rows.reduce(
+    (sum, row) => sum + Number(row.cost_value || 0),
+    0
+  );
+  const totalSaleValue = rows.reduce(
+    (sum, row) => sum + Number(row.sale_value || 0),
+    0
+  );
+
+  return (
+    <div className="bg-white p-4 rounded shadow mb-6 overflow-x-auto">
+      {rows.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          No hay inventario con existencias para mostrar.
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr>
+              <th className="text-center">Sucursal</th>
+              <th className="text-center">Producto</th>
+              <th className="text-center">Piezas</th>
+              <th className="text-center">Costo unitario</th>
+              <th className="text-center">Valor a costo</th>
+              <th className="text-center">Precio de venta</th>
+              <th className="text-center">Valor a venta</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.inventory_id}>
+                <td className="text-center">{r.store_name}</td>
+                <td className="text-center">{r.product_name}</td>
+                <td className="text-center">{r.pieces}</td>
+                <td className="text-center">${r.unit_cost.toFixed(2)}</td>
+                <td className="text-center">${r.cost_value.toFixed(2)}</td>
+                <td className="text-center">${r.sale_price.toFixed(2)}</td>
+                <td className="text-center">${r.sale_value.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+
+          <tfoot>
+            <tr className="font-bold border-t">
+              <td className="text-right" colSpan={2}>
+                Totales
+              </td>
+              <td className="text-center">{totalPieces}</td>
+              <td />
+              <td className="text-center">${totalCostValue.toFixed(2)}</td>
+              <td />
+              <td className="text-center">${totalSaleValue.toFixed(2)}</td>
+            </tr>
+          </tfoot>
         </table>
       )}
     </div>
