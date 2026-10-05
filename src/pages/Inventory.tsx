@@ -138,45 +138,62 @@ export default function Inventory() {
       return;
     }
 
-    let query = supabase.from("inventory").select(`
-        id,
-        product_id,
-        store_id,
-        stock,
-        min_stock,
-        products!inner (
-          name,
-          active
-        ),
-        pos_stores (
-          name
-        )
-      `);
+    const pageSize = 1000;
+    const allData: any[] = [];
+    let from = 0;
 
-    if (!isAdmin && user.store_id) {
-      query = query.eq("store_id", user.store_id);
+    while (true) {
+      let query = supabase.from("inventory").select(`
+          id,
+          product_id,
+          store_id,
+          stock,
+          min_stock,
+          products!inner (
+            name,
+            active
+          ),
+          pos_stores (
+            name
+          )
+        `);
+
+      if (!isAdmin && user.store_id) {
+        query = query.eq("store_id", user.store_id);
+      }
+
+      const { data, error } = await query
+        .order("store_id", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error("Error loading inventory:", error);
+        setRows([]);
+        return;
+      }
+
+      const page = data ?? [];
+      allData.push(...page);
+
+      if (page.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
     }
 
-    const { data, error } = await query.order("store_id");
-
-    if (error) {
-      console.error("Error loading inventory:", error);
-      setRows([]);
-      return;
-    }
-
-    const mapped =
-      (data ?? []).map((r: any) => ({
-        id: r.id,
-        product_id: r.product_id,
-        store_id: r.store_id,
-        stock: r.stock ?? 0,
-        min_stock: r.min_stock ?? 0,
-        product_name: r.products?.name ?? "(Sin nombre)",
-        product_active: r.products?.active ?? true,
-        store_name: r.pos_stores?.name ?? "(Sin sucursal)",
-        exists_in_inventory: true,
-      })) ?? [];
+    const mapped = allData.map((r: any) => ({
+      id: r.id,
+      product_id: r.product_id,
+      store_id: r.store_id,
+      stock: r.stock ?? 0,
+      min_stock: r.min_stock ?? 0,
+      product_name: r.products?.name ?? "(Sin nombre)",
+      product_active: r.products?.active ?? true,
+      store_name: r.pos_stores?.name ?? "(Sin sucursal)",
+      exists_in_inventory: true,
+    }));
 
     mapped.sort((a, b) => {
       if (a.store_name !== b.store_name) {
@@ -200,15 +217,74 @@ export default function Inventory() {
   const visibleRows = useMemo(() => {
     if (!isAdmin) {
       const storeId = user?.store_id || localStoreId;
-      return rows.filter((row) => row.store_id === storeId);
+      const storeName = stores[0]?.name ?? "(Sin sucursal)";
+
+      const existingByProductId = new Map(
+        rows
+          .filter((row) => row.store_id === storeId)
+          .map((row) => [row.product_id, row])
+      );
+
+      return products.map((product) => {
+        const existing = existingByProductId.get(product.id);
+
+        if (existing) {
+          return existing;
+        }
+
+        return {
+          id: "",
+          product_id: product.id,
+          store_id: storeId,
+          stock: 0,
+          min_stock: 0,
+          product_name: product.name,
+          product_active: product.active,
+          store_name: storeName,
+          exists_in_inventory: false,
+        };
+      });
     }
 
     if (selectedStoreId === "all") {
       return rows;
     }
 
-    return rows.filter((row) => row.store_id === selectedStoreId);
-  }, [rows, isAdmin, selectedStoreId, user?.store_id, localStoreId]);
+    const existingByProductId = new Map(
+      rows
+        .filter((row) => row.store_id === selectedStoreId)
+        .map((row) => [row.product_id, row])
+    );
+
+    return products.map((product) => {
+      const existing = existingByProductId.get(product.id);
+
+      if (existing) {
+        return existing;
+      }
+
+      return {
+        id: "",
+        product_id: product.id,
+        store_id: selectedStoreId,
+        stock: 0,
+        min_stock: 0,
+        product_name: product.name,
+        product_active: product.active,
+        store_name: selectedStore?.name ?? "(Sin sucursal)",
+        exists_in_inventory: false,
+      };
+    });
+  }, [
+    rows,
+    products,
+    stores,
+    isAdmin,
+    selectedStoreId,
+    selectedStore?.name,
+    user?.store_id,
+    localStoreId,
+  ]);
 
   async function ensureInventoryRow(row: InventoryRow): Promise<InventoryRow> {
     if (row.id) {
@@ -659,9 +735,15 @@ TEST-ADMIN-001, 13`}
                   <td className="border p-2">{r.min_stock}</td>
 
                   <td className="border p-2">
-                    <span className="inline-block px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-semibold">
-                      Con inventario
-                    </span>
+                    {r.exists_in_inventory ? (
+                      <span className="inline-block px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-semibold">
+                        Con inventario
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-1 rounded bg-yellow-100 text-yellow-700 text-xs font-semibold">
+                        Sin asignar
+                      </span>
+                    )}
                   </td>
 
                   <td className="border p-2">
