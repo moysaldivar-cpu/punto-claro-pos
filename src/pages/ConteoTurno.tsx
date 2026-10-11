@@ -109,7 +109,8 @@ export default function ConteoTurno() {
       const { data: inventoryData, error: inventoryError } = await supabase
         .from("inventory")
         .select("product_id, stock")
-        .eq("store_id", storeId);
+        .eq("store_id", storeId)
+        .eq("is_active", true);
 
       if (inventoryError) {
         setError("Error al cargar inventario: " + inventoryError.message);
@@ -133,7 +134,8 @@ export default function ConteoTurno() {
         const { data: productsData, error: productsError } = await supabase
           .from("products")
           .select("id, name")
-          .in("id", chunk);
+          .in("id", chunk)
+          .eq("active", true);
 
         if (productsError) {
           setError("Error al cargar productos: " + productsError.message);
