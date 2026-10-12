@@ -200,6 +200,36 @@ export default function ConteoTurno() {
     }));
   }
 
+  async function saveProductCount(productId: string) {
+    if (!cashSessionId || !storeId || !user?.id) {
+      return;
+    }
+
+    const productCount = counts[productId] || {
+      fridge: 0,
+      warehouse: 0,
+    };
+
+    const { error: saveError } = await supabase.from("inventory_counts").upsert(
+      {
+        store_id: storeId,
+        cash_session_id: cashSessionId,
+        product_id: productId,
+        fridge_qty: Number(productCount.fridge || 0),
+        warehouse_qty: Number(productCount.warehouse || 0),
+        created_by: user.id,
+      },
+      {
+        onConflict: "cash_session_id,product_id",
+      }
+    );
+
+    if (saveError) {
+      console.error(saveError);
+      alert("Error al guardar el conteo del producto.");
+    }
+  }
+
   async function saveAllCountsAndFinish() {
     if (!cashSessionId || !storeId || !user?.id) {
       alert("No hay sesión, usuario o sucursal activa.");
@@ -328,7 +358,16 @@ export default function ConteoTurno() {
 
               <tbody>
                 {products.map((product) => (
-                  <tr key={product.id} className="border-t">
+                  <tr
+                    key={product.id}
+                    className="border-t"
+                    onBlur={(e) => {
+                      const nextTarget = e.relatedTarget as Node | null;
+                      if (!e.currentTarget.contains(nextTarget)) {
+                        void saveProductCount(product.id);
+                      }
+                    }}
+                  >
                     <td className="p-3 font-medium">{product.name}</td>
 
                     <td className="p-3">
@@ -365,6 +404,12 @@ export default function ConteoTurno() {
               <div
                 key={product.id}
                 className="bg-white shadow rounded-lg p-4 border"
+                onBlur={(e) => {
+                  const nextTarget = e.relatedTarget as Node | null;
+                  if (!e.currentTarget.contains(nextTarget)) {
+                    void saveProductCount(product.id);
+                  }
+                }}
               >
                 <div className="font-semibold text-lg leading-tight mb-3">
                   {product.name}
