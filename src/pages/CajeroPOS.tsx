@@ -2735,10 +2735,6 @@ function WithdrawalTicketModal({
               </div>
             )}
 
-            <div className="flex justify-between font-semibold pt-2">
-              <span>Disponible después del retiro</span>
-              <span>${ticket.availableAfterWithdrawal.toFixed(2)}</span>
-            </div>
           </div>
 
           <div className="text-center text-xs mb-4">OPTICODE LABS</div>
