@@ -200,6 +200,10 @@ export default function Reports() {
     loadKpisData();
   }, [from, to, storeFilter, cashierFilter]);
 
+  useEffect(() => {
+    setShowCashiers(false);
+  }, [from, to, storeFilter, cashierFilter]);
+
   function buildRpcParams({
     fromValue,
     toValue,
