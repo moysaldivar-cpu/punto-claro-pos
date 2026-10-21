@@ -923,7 +923,7 @@ export default function Reports() {
         Venta_Neta: c.total_sales,
         Efectivo_MXN_Neto: c.total_cash,
         Tarjeta_MXN_Neto: c.total_card,
-        USD_Neto: c.total_usd,
+        Pagos_USD_en_MXN: Number(c.total_usd.toFixed(2)),
         Diferencia_MXN: c.difference,
         Estado_Diferencia: getDifferenceLabel(c.difference),
         Transacciones_Netas: c.transactions,
@@ -1025,7 +1025,7 @@ export default function Reports() {
         Venta_Neta: c.total_sales,
         Efectivo_MXN_Neto: c.total_cash,
         Tarjeta_MXN_Neto: c.total_card,
-        USD_Neto: c.total_usd,
+        Pagos_USD_en_MXN: Number(c.total_usd.toFixed(2)),
         Diferencia_MXN: c.difference,
         Estado_Diferencia: getDifferenceLabel(c.difference),
         Transacciones_Netas: c.transactions,
@@ -1503,7 +1503,7 @@ function TableCashiers({
             <th className="text-center">Venta Neta</th>
             <th className="text-center">Efectivo Neto</th>
             <th className="text-center">Tarjeta Neta</th>
-            <th className="text-center">USD Neto</th>
+            <th className="text-center">Pagos USD en MXN</th>
             <th className="text-center">
               Diferencia venta vs. recibido
             </th>
@@ -1529,7 +1529,7 @@ function TableCashiers({
               </td>
 
               <td className="text-center">
-                ${Number(r.total_usd || 0).toFixed(4)}
+                ${Number(r.total_usd || 0).toFixed(2)}
               </td>
 
               <td
