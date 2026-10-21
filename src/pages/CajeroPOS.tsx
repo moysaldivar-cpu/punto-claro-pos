@@ -1870,15 +1870,6 @@ export default function CajeroPOS() {
         </div>
       )}
 
-      {!adminReadOnlyMode &&
-        !cashWithdrawalBlocked &&
-        cashAvailableForWithdrawal > 0 && (
-          <div className="mb-4 rounded border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800 font-medium">
-            Disponible para retiro: ${cashAvailableForWithdrawal.toFixed(2)} MXN
-            generados por dinero físico en caja.
-          </div>
-        )}
-
       {!adminReadOnlyMode && (
         <div className="mb-4 flex gap-3">
           <button
