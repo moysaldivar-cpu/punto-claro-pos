@@ -351,6 +351,10 @@ export default function SaleAdjustments() {
           Módulo administrativo para cancelar tickets completos o registrar
           devoluciones parciales por producto.
         </p>
+        <p className="text-sm text-gray-600 mt-1">
+          Los reembolsos de compras en USD se entregan en pesos. Si el turno de la
+          venta ya cerró, el reembolso se entrega por separado y no se descuenta de caja.
+        </p>
       </div>
 
       <div className="bg-white rounded-lg shadow p-4 space-y-4">

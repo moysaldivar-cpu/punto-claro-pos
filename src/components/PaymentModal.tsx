@@ -31,10 +31,9 @@ function parseMoneyInput(value: string) {
 }
 
 function normalizeMoneyText(value: string) {
-  return value
-    .replace(",", ".")
-    .replace(/[^\d.]/g, "")
-    .replace(/(\..*)\./g, "$1");
+  const normalized = value.replace(/,/g, ".").replace(/[^\d.]/g, "");
+  const [whole, ...decimals] = normalized.split(".");
+  return decimals.length ? `${whole}.${decimals.join("").slice(0, 2)}` : whole;
 }
 
 export default function PaymentModal({
@@ -58,11 +57,11 @@ export default function PaymentModal({
     }
   }, [open]);
 
-  const safeExchangeRate = Number(exchangeRate || 1);
+  const safeExchangeRate = Number.isFinite(exchangeRate) && exchangeRate > 0 ? exchangeRate : 0;
 
-  const cashValue = parseMoneyInput(cash);
-  const cardValue = parseMoneyInput(card);
-  const usdValue = parseMoneyInput(usd);
+  const cashValue = method === "card" ? 0 : parseMoneyInput(cash);
+  const cardValue = method === "cash" ? 0 : parseMoneyInput(card);
+  const usdValue = method === "card" ? 0 : parseMoneyInput(usd);
 
   const usdInMXN = usdValue * safeExchangeRate;
 
@@ -77,9 +76,12 @@ export default function PaymentModal({
   const sumRounded = Number(sum.toFixed(2));
 
   const isValid =
-    method === "card"
+    Number.isFinite(totalRounded) && totalRounded >= 0 &&
+    cardValue <= totalRounded &&
+    (usdValue === 0 || safeExchangeRate > 0) &&
+    (method === "card"
       ? sumRounded === totalRounded
-      : sumRounded >= totalRounded;
+      : sumRounded >= totalRounded);
 
   const change = method === "card" ? 0 : Math.max(0, sum - total);
 
@@ -121,7 +123,7 @@ export default function PaymentModal({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open, isValid, method, cashValue, cardValue, usdValue]);
+  }, [open, isValid, method, cashValue, cardValue, usdValue, onConfirm]);
 
   if (!open) return null;
 
@@ -267,7 +269,11 @@ export default function PaymentModal({
 
         {!isValid && (
           <div className="mt-2 text-xs text-red-600">
-            {method === "card"
+            {usdValue > 0 && safeExchangeRate <= 0
+              ? "Se necesita un tipo de cambio válido para cobrar dólares."
+              : cardValue > totalRounded
+              ? "La tarjeta no puede exceder el total de la venta."
+              : method === "card"
               ? `La tarjeta debe cubrir exactamente $${total.toFixed(2)} MXN`
               : `El pago debe ser al menos $${total.toFixed(2)} MXN`}
           </div>

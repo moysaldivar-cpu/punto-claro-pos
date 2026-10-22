@@ -19,6 +19,9 @@ type Sale = {
   payment_cash: number;
   payment_card: number;
   payment_usd: number;
+  received_cash_mxn: number | null;
+  received_usd: number | null;
+  change_mxn: number | null;
 };
 
 type Item = {
@@ -132,6 +135,18 @@ export default function SaleDetail() {
     }
 
     const firstRow = rows[0];
+    const { data: received, error: receivedError } = await supabase
+      .from("sales")
+      .select("received_cash_mxn, received_usd, change_mxn")
+      .eq("id", id)
+      .single();
+    if (receivedError) {
+      setSale(null);
+      setItems([]);
+      setError("No se pudo cargar el dinero recibido de la venta.");
+      setLoading(false);
+      return;
+    }
 
     setSale({
       id: firstRow.sale_id,
@@ -147,6 +162,9 @@ export default function SaleDetail() {
       payment_cash: Number(firstRow.payment_cash || 0),
       payment_card: Number(firstRow.payment_card || 0),
       payment_usd: Number(firstRow.payment_usd || 0),
+      received_cash_mxn: received.received_cash_mxn == null ? null : Number(received.received_cash_mxn),
+      received_usd: received.received_usd == null ? null : Number(received.received_usd),
+      change_mxn: received.change_mxn == null ? null : Number(received.change_mxn),
     });
 
     const mappedItems: Item[] = rows.map((row) => {
@@ -187,7 +205,7 @@ export default function SaleDetail() {
   }
 
   function usd(value: number) {
-    return `$${Number(value || 0).toFixed(4)}`;
+    return `$${Number(value || 0).toFixed(sale?.received_usd == null ? 4 : 2)}`;
   }
 
   function getStatusLabel(status: SaleStatus) {
@@ -239,6 +257,8 @@ export default function SaleDetail() {
     return <p className="p-6 text-gray-500">No encontrado</p>;
   }
 
+  const cashOriginal = sale.received_cash_mxn ?? sale.payment_cash;
+  const usdOriginal = sale.received_usd ?? sale.payment_usd;
   const isAdjusted =
     sale.status === "cancelled" ||
     sale.status === "partially_returned" ||
@@ -473,21 +493,22 @@ export default function SaleDetail() {
       <div className="mt-3 text-sm border-t pt-2">
         <p className="font-semibold mb-1">Pagos originales:</p>
 
-        {sale.payment_cash > 0 ? (
-          <p>Efectivo: {money(sale.payment_cash)}</p>
+        {cashOriginal > 0 ? (
+          <p>Efectivo: {money(cashOriginal)}</p>
         ) : null}
 
         {sale.payment_card > 0 ? (
           <p>Tarjeta: {money(sale.payment_card)}</p>
         ) : null}
 
-        {sale.payment_usd > 0 ? (
-          <p>USD: {usd(sale.payment_usd)}</p>
+        {usdOriginal > 0 ? (
+          <p>{sale.received_usd == null ? "USD aplicados (histórico)" : "USD recibidos"}: {usd(usdOriginal)}</p>
         ) : null}
 
-        {sale.payment_cash <= 0 &&
+        {sale.change_mxn != null && <p>Cambio (MXN): {money(sale.change_mxn)}</p>}
+        {cashOriginal <= 0 &&
           sale.payment_card <= 0 &&
-          sale.payment_usd <= 0 && <p>Sin pagos registrados.</p>}
+          usdOriginal <= 0 && <p>Sin pagos registrados.</p>}
       </div>
 
       <div className="text-center text-xs text-gray-500 mt-4 border-t pt-3">
@@ -621,10 +642,10 @@ export default function SaleDetail() {
           <div className="border-b border-black py-2 text-xs space-y-1">
             <div className="font-semibold">Pagos originales</div>
 
-            {sale.payment_cash > 0 && (
+            {cashOriginal > 0 && (
               <div className="flex justify-between">
                 <span>Efectivo</span>
-                <span>{money(sale.payment_cash)}</span>
+                <span>{money(cashOriginal)}</span>
               </div>
             )}
 
@@ -635,16 +656,19 @@ export default function SaleDetail() {
               </div>
             )}
 
-            {sale.payment_usd > 0 && (
+            {usdOriginal > 0 && (
               <div className="flex justify-between">
-                <span>USD</span>
-                <span>{usd(sale.payment_usd)}</span>
+                <span>{sale.received_usd == null ? "USD aplicados (histórico)" : "USD recibidos"}</span>
+                <span>{usd(usdOriginal)}</span>
               </div>
             )}
 
-            {sale.payment_cash <= 0 &&
+            {sale.change_mxn != null && (
+              <div className="flex justify-between"><span>Cambio (MXN)</span><span>{money(sale.change_mxn)}</span></div>
+            )}
+            {cashOriginal <= 0 &&
               sale.payment_card <= 0 &&
-              sale.payment_usd <= 0 && <div>Sin pagos registrados.</div>}
+              usdOriginal <= 0 && <div>Sin pagos registrados.</div>}
           </div>
 
           {isAdjusted && (

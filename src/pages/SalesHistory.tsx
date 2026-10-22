@@ -19,6 +19,9 @@ type Sale = {
   payment_card: number;
   payment_usd: number;
   user_name: string;
+  received_cash_mxn: number | null;
+  received_usd: number | null;
+  change_mxn: number | null;
 };
 
 type PaymentMethod = "cash" | "card" | "mixed";
@@ -168,6 +171,9 @@ export default function SalesHistory() {
         payment_cash,
         payment_card,
         payment_usd,
+        received_cash_mxn,
+        received_usd,
+        change_mxn,
         user_name
       `)
       .order("created_at", { ascending: false })
@@ -194,6 +200,9 @@ export default function SalesHistory() {
         payment_card: Number(row.payment_card || 0),
         payment_usd: Number(row.payment_usd || 0),
         user_name: String(row.user_name || "Cajero"),
+        received_cash_mxn: row.received_cash_mxn == null ? null : Number(row.received_cash_mxn),
+        received_usd: row.received_usd == null ? null : Number(row.received_usd),
+        change_mxn: row.change_mxn == null ? null : Number(row.change_mxn),
       }))
     );
 
@@ -309,9 +318,9 @@ export default function SalesHistory() {
         items: ticketItems,
         payment: {
           payment_method: normalizePaymentMethod(saleForTicket.payment_method),
-          payment_cash: Number(saleForTicket.payment_cash || 0),
+          payment_cash: Number(saleForTicket.received_cash_mxn ?? saleForTicket.payment_cash ?? 0),
           payment_card: Number(saleForTicket.payment_card || 0),
-          payment_usd: Number(saleForTicket.payment_usd || 0),
+          payment_usd: Number(saleForTicket.received_usd ?? saleForTicket.payment_usd ?? 0),
         },
         exchangeRate,
         netTotal: getNetTotal(saleForTicket),
@@ -502,7 +511,7 @@ function TicketModal({
   }
 
   function usd(value: number) {
-    return `$${Number(value || 0).toFixed(4)}`;
+    return `$${Number(value || 0).toFixed(ticket.sale.received_usd == null ? 4 : 2)}`;
   }
 
   function getStatusLabel(status: SaleStatus) {
@@ -517,12 +526,7 @@ function TicketModal({
     ticket.sale.status === "partially_returned" ||
     ticket.sale.status === "fully_returned";
 
-  const totalPagadoOriginal =
-    Number(ticket.payment.payment_cash || 0) +
-    Number(ticket.payment.payment_card || 0) +
-    Number(ticket.payment.payment_usd || 0) * Number(ticket.exchangeRate || 1);
-
-  const cambioOriginal = totalPagadoOriginal - Number(ticket.sale.total || 0);
+  const cambioOriginal = ticket.sale.change_mxn;
 
   const displayFolio =
     String(ticket.sale.folio || "").trim() ||
@@ -724,7 +728,7 @@ function TicketModal({
 
             <div className="space-y-1 text-sm mb-3">
               <div className="flex justify-between">
-                <span>Efectivo original</span>
+                <span>{ticket.sale.received_cash_mxn == null ? "Efectivo aplicado" : "Efectivo recibido"}</span>
                 <span>{money(ticket.payment.payment_cash)}</span>
               </div>
 
@@ -734,7 +738,7 @@ function TicketModal({
               </div>
 
               <div className="flex justify-between">
-                <span>USD original</span>
+                <span>{ticket.sale.received_usd == null ? "USD aplicados (histórico)" : "USD recibidos"}</span>
                 <span>{usd(ticket.payment.payment_usd)}</span>
               </div>
 
@@ -770,8 +774,8 @@ function TicketModal({
 
               {!isAdjusted && (
                 <div className="flex justify-between">
-                  <span>Cambio</span>
-                  <span>{money(cambioOriginal > 0 ? cambioOriginal : 0)}</span>
+                  <span>Cambio (MXN)</span>
+                  <span>{cambioOriginal == null ? "No registrado" : money(cambioOriginal)}</span>
                 </div>
               )}
             </div>

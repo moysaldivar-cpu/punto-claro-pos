@@ -296,7 +296,7 @@ export default function CloseCashSession() {
   }
 
   function usd(value: number) {
-    return `$${Number(value || 0).toFixed(4)}`;
+    return `$${Number(value || 0).toFixed(2)}`;
   }
 
   function capturedAmountClass(value: number) {
@@ -528,7 +528,7 @@ export default function CloseCashSession() {
                     <label className="block text-sm mb-1">USD reales</label>
                     <input
                       type="number"
-                      step="0.0001"
+                      step="0.01"
                       className="border p-2 w-full rounded"
                       value={realUsd}
                       onChange={(e) => setRealUsd(e.target.value)}
@@ -686,7 +686,7 @@ function CloseTicketModal({
   }
 
   function usd(value: number) {
-    return `$${Number(value || 0).toFixed(4)}`;
+    return `$${Number(value || 0).toFixed(2)}`;
   }
 
   const hasEmptyBoxes =

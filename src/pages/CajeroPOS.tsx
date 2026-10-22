@@ -924,59 +924,28 @@ export default function CajeroPOS() {
     try {
       const { data: sessionRow, error: sessionError } = await supabase
         .from("cash_sessions")
-        .select("exchange_rate")
+        .select("opening_amount")
         .eq("id", currentSessionId)
         .maybeSingle();
 
-      const { data: cashSalesRows, error: cashSalesError } = await supabase
-        .from("sales")
-        .select("payment_cash, payment_usd")
-        .eq("cash_session_id", currentSessionId);
-
-      const { data: withdrawalRows, error: withdrawalError } = await supabase
-        .from("cash_withdrawals")
-        .select("amount")
-        .eq("cash_session_id", currentSessionId);
-
-      if (sessionError || cashSalesError || withdrawalError) {
-        console.error(
-          "Error calculando disponible para retiro:",
-          sessionError || cashSalesError || withdrawalError
-        );
-
+      const { data: totalsRows, error: totalsError } = await supabase.rpc(
+        "get_cash_session_totals", { p_session_id: currentSessionId }
+      );
+      const sessionTotals = totalsRows?.[0];
+      if (sessionError || totalsError || !sessionRow || !sessionTotals) {
+        console.error("Error calculando disponible para retiro:", sessionError || totalsError);
         setCashAvailableForWithdrawal(0);
         setCashWithdrawalBlocked(false);
-
-        return {
-          availableForWithdrawal: 0,
-          blocked: false,
-          error: true,
-        };
+        return { availableForWithdrawal: 0, blocked: false, error: true };
       }
 
-      const sessionRate = Number(
-        sessionRow?.exchange_rate || exchangeRate || 1
-      );
-
-      const totalPhysicalCashMxn = round2(
-        (cashSalesRows ?? []).reduce((acc, row: any) => {
-          const cashMxn = Number(row.payment_cash || 0);
-          const usdAsMxn = Number(row.payment_usd || 0) * sessionRate;
-
-          return acc + cashMxn + usdAsMxn;
-        }, 0)
-      );
-
-      const totalWithdrawnMxn = round2(
-        (withdrawalRows ?? []).reduce((acc, row: any) => {
-          return acc + Number(row.amount || 0);
-        }, 0)
-      );
-
-      const availableForWithdrawal = Math.max(
-        0,
-        round2(totalPhysicalCashMxn - totalWithdrawnMxn)
-      );
+      // El total de caja ya considera retiros y los reembolsos de este turno.
+      // Excluir tarjeta y fondo inicial conserva la regla de retiro existente.
+      const availableForWithdrawal = Math.max(0, round2(
+        Number(sessionTotals.total_general_mxn || 0)
+          - Number(sessionTotals.total_card_mxn || 0)
+          - Number(sessionRow.opening_amount || 0)
+      ));
 
       const blocked = availableForWithdrawal >= WITHDRAWAL_THRESHOLD_MXN;
 
@@ -1349,50 +1318,47 @@ export default function CajeroPOS() {
     rate: number
   ) {
     const method = payment.payment_method;
-
-    const enteredCash = Number(payment.payment_cash || 0);
-    const enteredCard = Number(payment.payment_card || 0);
-    const enteredUsd = Number(payment.payment_usd || 0);
-
-    let remaining = Number(totalAmount.toFixed(4));
-
-    let appliedCash = 0;
-    let appliedCard = 0;
-    let appliedUsd = 0;
-
-    if (method === "card") {
-      appliedCard = Number(totalAmount.toFixed(2));
+    if (!["cash", "card", "mixed"].includes(method)) {
+      throw new Error("Método de pago inválido.");
     }
 
-    if (method === "cash") {
-      const usdAppliedMxn = Math.min(enteredUsd * rate, remaining);
-      appliedUsd = Number((usdAppliedMxn / rate).toFixed(4));
-      remaining = Number((remaining - usdAppliedMxn).toFixed(4));
+    const moneyValue = (value: number) => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error("Los importes del pago deben ser válidos y positivos.");
+      }
+      return Math.round((parsed + Number.EPSILON) * 100) / 100;
+    };
+    const amount = moneyValue(totalAmount);
+    const enteredCash = method === "card" ? 0 : moneyValue(payment.payment_cash);
+    const enteredCard = method === "cash" ? 0 : moneyValue(payment.payment_card);
+    const enteredUsd = method === "card" ? 0 : moneyValue(payment.payment_usd);
 
-      const cashApplied = Math.min(enteredCash, remaining);
-      appliedCash = Number(cashApplied.toFixed(2));
-      remaining = Number((remaining - cashApplied).toFixed(4));
+    if (enteredUsd > 0 && (!Number.isFinite(rate) || rate <= 0)) {
+      throw new Error("Se necesita un tipo de cambio válido para cobrar dólares.");
+    }
+    const usdMxn = enteredUsd > 0 ? moneyValue(enteredUsd * rate) : 0;
+    const paid = moneyValue(enteredCash + enteredCard + usdMxn);
+    if (paid < amount || enteredCard > amount || (method === "card" && paid !== amount)) {
+      throw new Error("Revisa los importes: el pago debe cubrir la venta y la tarjeta no debe exceder el total.");
     }
 
-    if (method === "mixed") {
-      const cardApplied = Math.min(enteredCard, remaining);
-      appliedCard = Number(cardApplied.toFixed(2));
-      remaining = Number((remaining - cardApplied).toFixed(4));
+    // Conservar la distribución aplicada a la venta para los reportes existentes.
+    const appliedCard = Math.min(enteredCard, amount);
+    const remaining = moneyValue(amount - appliedCard);
+    const usdAppliedMxn = Math.min(usdMxn, remaining);
+    const appliedUsd = enteredUsd > 0 ? Number((usdAppliedMxn / rate).toFixed(4)) : 0;
+    const appliedCash = moneyValue(remaining - usdAppliedMxn);
 
-      const usdAppliedMxn = Math.min(enteredUsd * rate, remaining);
-      appliedUsd = Number((usdAppliedMxn / rate).toFixed(4));
-      remaining = Number((remaining - usdAppliedMxn).toFixed(4));
-
-      const cashApplied = Math.min(enteredCash, remaining);
-      appliedCash = Number(cashApplied.toFixed(2));
-      remaining = Number((remaining - cashApplied).toFixed(4));
-    }
-
+    // Registrar por separado el dinero recibido y el cambio entregado en pesos.
     return {
       payment_method: method,
-      payment_cash: Number(appliedCash.toFixed(2)),
-      payment_card: Number(appliedCard.toFixed(2)),
-      payment_usd: Number(appliedUsd.toFixed(4)),
+      payment_cash: appliedCash,
+      payment_card: appliedCard,
+      payment_usd: appliedUsd,
+      received_cash_mxn: enteredCash,
+      received_usd: enteredUsd,
+      change_mxn: moneyValue(paid - amount),
     };
   }
 
@@ -1441,7 +1407,7 @@ export default function CajeroPOS() {
 
     const activeSessionId = currentSession.id;
     const activeExchangeRate = Number(
-      currentSession.exchange_rate || exchangeRate || 1
+      currentSession.exchange_rate ?? exchangeRate
     );
     const activeOpeningAmount = Number(currentSession.opening_amount || 0);
 
@@ -1449,11 +1415,13 @@ export default function CajeroPOS() {
     setExchangeRate(activeExchangeRate);
     setSessionOpeningAmount(activeOpeningAmount);
 
-    const normalizedPayment = normalizePayment(
-      payment,
-      total,
-      activeExchangeRate
-    );
+    let normalizedPayment: ReturnType<typeof normalizePayment>;
+    try {
+      normalizedPayment = normalizePayment(payment, total, activeExchangeRate);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Revisa los importes del pago.");
+      return;
+    }
 
     const preSaleCashStatus = await loadCashWithdrawalStatus(activeSessionId);
 
@@ -1473,10 +1441,7 @@ export default function CajeroPOS() {
       return;
     }
 
-    const physicalCashFromThisSale = round2(
-      Number(normalizedPayment.payment_cash || 0) +
-        Number(normalizedPayment.payment_usd || 0) * activeExchangeRate
-    );
+    const physicalCashFromThisSale = round2(total - normalizedPayment.payment_card);
 
     const availableAfterThisSale = round2(
       preSaleCashStatus.availableForWithdrawal + physicalCashFromThisSale
@@ -1505,7 +1470,7 @@ export default function CajeroPOS() {
     saleSubmittingRef.current = true;
 
     try {
-      const { data: sale } = await supabase
+      const { data: sale, error: saleError } = await supabase
         .from("sales")
         .insert({
           store_id: activeStoreId,
@@ -1515,14 +1480,17 @@ export default function CajeroPOS() {
           payment_cash: normalizedPayment.payment_cash,
           payment_usd: normalizedPayment.payment_usd,
           payment_card: normalizedPayment.payment_card,
+          received_cash_mxn: normalizedPayment.received_cash_mxn,
+          received_usd: normalizedPayment.received_usd,
+          change_mxn: normalizedPayment.change_mxn,
           user_name: user?.nombre || "Cajero",
           created_at: new Date(),
         })
         .select()
         .single();
 
-      if (!sale) {
-        alert("Error al registrar venta");
+      if (saleError || !sale) {
+        alert("Error al registrar venta: " + (saleError?.message || "No se recibió la venta registrada."));
         return;
       }
 
@@ -1575,7 +1543,12 @@ export default function CajeroPOS() {
       setTicket({
         sale,
         items: pricedItems,
-        payment,
+        payment: {
+          payment_method: normalizedPayment.payment_method,
+          payment_cash: normalizedPayment.received_cash_mxn,
+          payment_card: normalizedPayment.payment_card,
+          payment_usd: normalizedPayment.received_usd,
+        },
         exchangeRate: activeExchangeRate,
       });
 
@@ -2336,12 +2309,7 @@ function TicketModal({
     0
   );
 
-  const totalPagado =
-    Number(ticket.payment.payment_cash || 0) +
-    Number(ticket.payment.payment_card || 0) +
-    Number(ticket.payment.payment_usd || 0) * Number(ticket.exchangeRate || 1);
-
-  const cambio = totalPagado - subtotalItems;
+  const cambio = Number(ticket.sale?.change_mxn || 0);
 
   const displayFolio =
     String(ticket.sale?.folio || "").trim() ||
@@ -2499,7 +2467,7 @@ function TicketModal({
 
             <div className="flex justify-between">
               <span>USD</span>
-              <span>${Number(ticket.payment.payment_usd || 0).toFixed(4)}</span>
+              <span>${Number(ticket.payment.payment_usd || 0).toFixed(2)}</span>
             </div>
 
             <div className="flex justify-between">
@@ -2513,7 +2481,7 @@ function TicketModal({
             </div>
 
             <div className="flex justify-between">
-              <span>Cambio</span>
+              <span>Cambio (MXN)</span>
               <span>${(cambio > 0 ? cambio : 0).toFixed(2)}</span>
             </div>
           </div>
