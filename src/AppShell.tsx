@@ -76,6 +76,10 @@ export default function AppShell() {
                 Cancelaciones
               </NavLink>
 
+              <NavLink to="/inventory-history" className={linkClass}>
+                Historial de Inventario
+              </NavLink>
+
               <NavLink to="/reports" className={linkClass}>
                 Reportes
               </NavLink>

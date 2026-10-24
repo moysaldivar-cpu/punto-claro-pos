@@ -16,6 +16,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import CloseCashSession from "@/pages/CloseCashSession";
 import ConteoTurno from "@/pages/ConteoTurno";
 import InventoryLoss from "@/pages/InventoryLoss";
+import InventoryHistory from "@/pages/InventoryHistory";
 import Stores from "@/pages/Stores";
 import SaleAdjustments from "@/pages/SaleAdjustments";
 import Settings from "@/pages/Settings";
@@ -132,6 +133,16 @@ export default function Router() {
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <SaleAdjustments />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Historial de inventario - solo admin */}
+        <Route
+          path="/inventory-history"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <InventoryHistory />
             </ProtectedRoute>
           }
         />
