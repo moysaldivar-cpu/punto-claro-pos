@@ -80,6 +80,10 @@ export default function AppShell() {
                 Historial de Inventario
               </NavLink>
 
+              <NavLink to="/cash-withdrawals-report" className={linkClass}>
+                Retiros de Efectivo
+              </NavLink>
+
               <NavLink to="/reports" className={linkClass}>
                 Reportes
               </NavLink>

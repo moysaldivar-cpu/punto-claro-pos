@@ -17,6 +17,7 @@ import CloseCashSession from "@/pages/CloseCashSession";
 import ConteoTurno from "@/pages/ConteoTurno";
 import InventoryLoss from "@/pages/InventoryLoss";
 import InventoryHistory from "@/pages/InventoryHistory";
+import CashWithdrawalsReport from "@/pages/CashWithdrawalsReport";
 import Stores from "@/pages/Stores";
 import SaleAdjustments from "@/pages/SaleAdjustments";
 import Settings from "@/pages/Settings";
@@ -143,6 +144,16 @@ export default function Router() {
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <InventoryHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Retiros de efectivo - solo admin */}
+        <Route
+          path="/cash-withdrawals-report"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <CashWithdrawalsReport />
             </ProtectedRoute>
           }
         />
