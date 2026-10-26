@@ -52,6 +52,13 @@ export default function AppShell() {
               Productos
             </NavLink>
           )}
+          {/* Diferencias de Inventario - gerente y admin */}
+          {(rol === "gerente" || rol === "admin") && (
+            <NavLink to="/inventory-differences" className={linkClass}>
+              Diferencias de Inventario
+            </NavLink>
+          )}
+
 
           {/* Solo Admin */}
           {rol === "admin" && (

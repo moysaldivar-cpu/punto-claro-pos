@@ -18,6 +18,7 @@ import ConteoTurno from "@/pages/ConteoTurno";
 import InventoryLoss from "@/pages/InventoryLoss";
 import InventoryHistory from "@/pages/InventoryHistory";
 import CashWithdrawalsReport from "@/pages/CashWithdrawalsReport";
+import InventoryDifferencesReport from "@/pages/InventoryDifferencesReport";
 import Stores from "@/pages/Stores";
 import SaleAdjustments from "@/pages/SaleAdjustments";
 import Settings from "@/pages/Settings";
@@ -134,6 +135,15 @@ export default function Router() {
           element={
             <ProtectedRoute allowedRoles={["admin"]}>
               <SaleAdjustments />
+            </ProtectedRoute>
+          }
+        />
+        {/* Diferencias de inventario - gerente y admin */}
+        <Route
+          path="/inventory-differences"
+          element={
+            <ProtectedRoute allowedRoles={["gerente", "admin"]}>
+              <InventoryDifferencesReport />
             </ProtectedRoute>
           }
         />
