@@ -1623,11 +1623,6 @@ export default function CajeroPOS() {
       return;
     }
 
-    if (amount > latestStatus.availableForWithdrawal) {
-      alert("El monto a retirar no puede ser mayor al disponible para retiro.");
-      return;
-    }
-
     if (cashBreakdown.length === 0 || roundedBreakdownTotal <= 0) {
       alert("Debe capturar el desglose de billetes/monedas del retiro.");
       return;
@@ -2048,7 +2043,6 @@ export default function CajeroPOS() {
 
       <WithdrawalModal
         open={isWithdrawalOpen}
-        maxAmount={cashAvailableForWithdrawal}
         onClose={() => setIsWithdrawalOpen(false)}
         onConfirm={handleConfirmWithdrawal}
       />
@@ -2078,12 +2072,10 @@ export default function CajeroPOS() {
 
 function WithdrawalModal({
   open,
-  maxAmount,
   onClose,
   onConfirm,
 }: {
   open: boolean;
-  maxAmount: number;
   onClose: () => void;
   onConfirm: (
     amount: string,
@@ -2127,7 +2119,6 @@ function WithdrawalModal({
     cashBreakdown.reduce((acc, item) => acc + Number(item.subtotal || 0), 0)
   );
 
-  const isOverAvailable = breakdownTotal > maxAmount;
 
   useEffect(() => {
     if (open) {
@@ -2143,11 +2134,6 @@ function WithdrawalModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white w-full max-w-md rounded shadow-lg p-6">
         <h2 className="text-2xl font-bold mb-4">Registrar retiro</h2>
-
-        <div className="text-sm text-gray-600 mb-4">
-          Disponible para retiro:{" "}
-          <span className="font-semibold">${maxAmount.toFixed(2)}</span>
-        </div>
 
         <div className="mb-4 rounded border bg-gray-50 p-3">
           <div className="font-semibold mb-3">Desglose de efectivo retirado</div>
@@ -2204,17 +2190,12 @@ function WithdrawalModal({
           <div className="mt-3 flex justify-between text-sm font-semibold">
             <span>Total del desglose</span>
             <span
-              className={isOverAvailable ? "text-red-600" : "text-green-700"}
+              className="text-green-700"
             >
               ${breakdownTotal.toFixed(2)}
             </span>
           </div>
 
-          {isOverAvailable && (
-            <div className="mt-2 text-xs text-red-600">
-              El total del desglose no puede ser mayor al disponible para retiro.
-            </div>
-          )}
         </div>
 
         <input
@@ -2228,7 +2209,7 @@ function WithdrawalModal({
         <div className="flex gap-2">
           <button
             className="bg-black text-white px-4 py-3 rounded w-full disabled:opacity-50"
-            disabled={breakdownTotal <= 0 || isOverAvailable}
+            disabled={breakdownTotal <= 0}
             onClick={() =>
               onConfirm(
                 String(breakdownTotal),
