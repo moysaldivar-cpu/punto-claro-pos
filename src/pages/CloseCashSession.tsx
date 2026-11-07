@@ -53,6 +53,7 @@ type CashDenominationCounts = Record<CashDenominationKey, string>;
 
 type CloseTicketData = {
   sessionId: string;
+  storeName: string;
   userName: string;
   closedAt: string;
   exchangeRate: number;
@@ -111,6 +112,7 @@ export default function CloseCashSession() {
   const isAdmin = role === "admin";
 
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [storeName, setStoreName] = useState<string>("Sucursal no disponible");
   const [exchangeRate, setExchangeRate] = useState<number>(0);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [inventoryComparison, setInventoryComparison] = useState<ComparisonRow[]>([]);
@@ -185,6 +187,14 @@ export default function CloseCashSession() {
         setLoading(false);
         return;
       }
+
+      const { data: storeData } = await supabase
+        .from("pos_stores")
+        .select("name")
+        .eq("id", session.store_id)
+        .maybeSingle();
+
+      setStoreName(storeData?.name || "Sucursal no disponible");
 
       setSessionId(session.id);
       setExchangeRate(Number(session.exchange_rate || 0));
@@ -405,6 +415,7 @@ export default function CloseCashSession() {
 
     setCloseTicket({
       sessionId,
+      storeName,
       userName: String(user?.nombre || "Sin nombre").trim() || "Sin nombre",
       closedAt: new Date().toISOString(),
       exchangeRate,
@@ -799,6 +810,9 @@ function CloseTicketModal({
           <div className="mb-4 text-sm space-y-1">
             <div>
               <span className="font-semibold">Usuario:</span> {ticket.userName}
+            </div>
+            <div>
+              <span className="font-semibold">Sucursal:</span> {ticket.storeName}
             </div>
             <div>
               <span className="font-semibold">Fecha:</span>{" "}
