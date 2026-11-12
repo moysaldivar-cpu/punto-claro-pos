@@ -11,6 +11,7 @@ type ProductInfo = {
   id: string;
   name: string;
   cost: number;
+  price: number;
 };
 
 type ProductReportRow = {
@@ -59,6 +60,7 @@ type LossRow = {
   product_name: string;
   store_name: string;
   cost: number;
+  price: number;
 };
 
 type SaleAdjustmentReportRow = {
@@ -414,7 +416,7 @@ export default function Reports() {
     ).filter((id) => id.length > 0);
 
     const [{ data: productsData }, { data: storesData }] = await Promise.all([
-      supabase.from("products").select("id, name, cost").in("id", productIds),
+      supabase.from("products").select("id, name, cost, price").in("id", productIds),
       supabase.from("pos_stores").select("id, name").in("id", storeIds),
     ]);
 
@@ -425,6 +427,7 @@ export default function Reports() {
           id: String(product.id),
           name: String(product.name || "Producto").trim(),
           cost: Number(product.cost || 0),
+          price: Number(product.price || 0),
         },
       ])
     );
@@ -448,6 +451,7 @@ export default function Reports() {
         product_name: product?.name || "Producto",
         store_name: storeName,
         cost: Number(product?.cost || 0),
+        price: Number(product?.price || 0),
       };
     });
   }
@@ -824,11 +828,16 @@ export default function Reports() {
     );
 
     const merma = lossRows.reduce(
+      (a, b) => a + Number(b.price || 0) * Number(b.quantity || 0),
+      0
+    );
+
+    const costoMerma = lossRows.reduce(
       (a, b) => a + Number(b.cost || 0) * Number(b.quantity || 0),
       0
     );
 
-    const utilidadNeta = utilidad - merma;
+    const utilidadNeta = utilidad - costoMerma;
 
     return { ventas, costo, utilidad, merma, utilidadNeta };
   }, [productRows, lossRows]);
